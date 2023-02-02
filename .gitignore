@@ -1,0 +1,8 @@
+*~
+*.pyc
+*.pyo
+build*/
+.vscode*/
+*.cubin
+examples/*.yml
+examples/*.py

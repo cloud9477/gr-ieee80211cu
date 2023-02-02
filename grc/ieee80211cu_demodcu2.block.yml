@@ -1,0 +1,23 @@
+id: ieee80211cu_demodcu2
+label: demodcu2
+category: '[ieee80211cu]'
+
+templates:
+  imports: from gnuradio import ieee80211cu
+  make: ieee80211cu.demodcu2()
+
+inputs:
+- label: sig1
+  domain: stream
+  dtype: complex
+- label: sig2
+  domain: stream
+  dtype: complex
+
+outputs:
+- domain: message
+  id: out
+
+#  'file_format' specifies the version of the GRC yml format used in the file
+#  and should usually not be changed.
+file_format: 1

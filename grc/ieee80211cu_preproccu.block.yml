@@ -1,0 +1,24 @@
+id: ieee80211cu_preproccu
+label: preproccu
+category: '[ieee80211cu]'
+
+templates:
+  imports: from gnuradio import ieee80211cu
+  make: ieee80211cu.preproccu()
+
+inputs:
+- label: sig
+  domain: stream
+  dtype: complex
+
+outputs:
+- label: preac
+  domain: stream
+  dtype: float
+- label: preconj
+  domain: stream
+  dtype: complex
+
+#  'file_format' specifies the version of the GRC yml format used in the file
+#  and should usually not be changed.
+file_format: 1
