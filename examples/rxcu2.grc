@@ -125,21 +125,6 @@ blocks:
     coordinate: [8, 180.0]
     rotation: 0
     state: enabled
-- name: ieee80211_demodcu2_0
-  id: ieee80211_demodcu2
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [904, 168.0]
-    rotation: 0
-    state: enabled
 - name: ieee80211_signal2_0
   id: ieee80211_signal2
   parameters:
@@ -183,6 +168,21 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate: [456, 120.0]
+    rotation: 0
+    state: true
+- name: ieee80211cu_demodcu2_0
+  id: ieee80211cu_demodcu2
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [904, 168.0]
     rotation: 0
     state: true
 - name: import_0
@@ -239,11 +239,11 @@ connections:
 - [blocks_file_source_0, '0', ieee80211_sync_0, '2']
 - [blocks_file_source_0, '0', presisocu_0, '0']
 - [blocks_file_source_0_0, '0', ieee80211_signal2_0, '2']
-- [ieee80211_demodcu2_0, out, network_socket_pdu_0_0, pdus]
-- [ieee80211_signal2_0, '0', ieee80211_demodcu2_0, '0']
-- [ieee80211_signal2_0, '1', ieee80211_demodcu2_0, '1']
+- [ieee80211_signal2_0, '0', ieee80211cu_demodcu2_0, '0']
+- [ieee80211_signal2_0, '1', ieee80211cu_demodcu2_0, '1']
 - [ieee80211_sync_0, '0', ieee80211_signal2_0, '0']
 - [ieee80211_trigger_0, '0', ieee80211_sync_0, '0']
+- [ieee80211cu_demodcu2_0, out, network_socket_pdu_0_0, pdus]
 - [presisocu_0, '0', ieee80211_trigger_0, '0']
 - [presisocu_0, '1', ieee80211_sync_0, '1']
 

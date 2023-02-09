@@ -106,8 +106,8 @@ namespace gr {
           d_nSigLMcs = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("mcs"), pmt::from_long(-1)));
           d_nSigLLen = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("len"), pmt::from_long(-1)));
           d_nSigLSamp = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("nsamp"), pmt::from_long(-1)));
-          std::vector<gr_complex> tmp_csi = pmt::c32vector_elements(pmt::dict_ref(d_meta, pmt::mp("csi"), pmt::PMT_NIL));
-          std::copy(tmp_csi.begin(), tmp_csi.end(), d_H);
+          std::vector<gr_complex> tmp_chan = pmt::c32vector_elements(pmt::dict_ref(d_meta, pmt::mp("chan"), pmt::PMT_NIL));
+          std::copy(tmp_chan.begin(), tmp_chan.end(), d_H);
           dout<<"ieee80211 demodcu2, rd tag seq:"<<tmpPktSeq<<", mcs:"<<d_nSigLMcs<<", len:"<<d_nSigLLen<<", samp:"<<d_nSigLSamp<<std::endl;
           d_nSampConsumed = 0;
           d_nSigLSamp = d_nSigLSamp + 320;
@@ -278,6 +278,176 @@ namespace gr {
 
       consume_each (d_nUsed);
       return 0;
+    }
+    
+    void
+    demodcu2_impl::packetAssemble()
+    {
+      if(d_m.format == C8P_F_VHT)
+      {
+        int tmpDeliBits[24];
+        int tmpEof = 0, tmpLen = 0, tmpProcP = 0;
+        while(true)
+        {
+          if((d_m.len - tmpProcP) < 4)
+          {
+            break;
+          }
+          // get info from delimiter
+          for(int i=0;i<3;i++)
+          {
+            for(int j=0;j<8;j++)
+            {
+              tmpDeliBits[i*8+j] = (d_psduBytes[tmpProcP+i] >> j) & 1;
+            }
+          }
+          tmpEof = tmpDeliBits[0];
+          tmpLen |= (((int)tmpDeliBits[2])<<12);
+          tmpLen |= (((int)tmpDeliBits[3])<<13);
+          for(int i=0;i<12;i++)
+          {
+            tmpLen |= (((int)tmpDeliBits[4+i])<<i);
+          }
+          dout << "ieee80211 demodcu2, vht pkt subframe len: "<<tmpLen<<std::endl;
+          if(d_m.len < (tmpProcP + 4 + tmpLen))
+          {
+            break;
+          }
+          // write info into delimiter part
+          d_crc32.reset();
+          d_crc32.process_bytes(&d_psduBytes[tmpProcP+4], tmpLen);
+          if (d_crc32.checksum() != 558161692) {
+            std::cout << "ieee80211 demodcu2, vht crc32 wrong, total:"<< d_nPktCorrect;
+            std::cout << ",0:"<<d_vhtMcsCount[0];
+            std::cout << ",1:"<<d_vhtMcsCount[1];
+            std::cout << ",2:"<<d_vhtMcsCount[2];
+            std::cout << ",3:"<<d_vhtMcsCount[3];
+            std::cout << ",4:"<<d_vhtMcsCount[4];
+            std::cout << ",5:"<<d_vhtMcsCount[5];
+            std::cout << ",6:"<<d_vhtMcsCount[6];
+            std::cout << ",7:"<<d_vhtMcsCount[7];
+            std::cout << ",8:"<<d_vhtMcsCount[8];
+            std::cout << ",9:"<<d_vhtMcsCount[9];
+            std::cout << std::endl;
+            tmpProcP = tmpProcP + 4 + tmpLen;
+          }
+          else
+          {
+            d_nPktCorrect++;
+            if(d_m.mcs >= 0 && d_m.mcs < 10)
+            {
+              d_vhtMcsCount[d_m.mcs]++;
+            }
+            std::cout << "ieee80211 demodcu2, vht crc32 correct, total:" << d_nPktCorrect;
+            std::cout << ",0:"<<d_vhtMcsCount[0];
+            std::cout << ",1:"<<d_vhtMcsCount[1];
+            std::cout << ",2:"<<d_vhtMcsCount[2];
+            std::cout << ",3:"<<d_vhtMcsCount[3];
+            std::cout << ",4:"<<d_vhtMcsCount[4];
+            std::cout << ",5:"<<d_vhtMcsCount[5];
+            std::cout << ",6:"<<d_vhtMcsCount[6];
+            std::cout << ",7:"<<d_vhtMcsCount[7];
+            std::cout << ",8:"<<d_vhtMcsCount[8];
+            std::cout << ",9:"<<d_vhtMcsCount[9];
+            std::cout << std::endl;
+            // 1 byte packet format, 2 byte len
+            d_psduBytes[tmpProcP+1] = d_m.format;    // byte 0 format
+            d_psduBytes[tmpProcP+2] = tmpLen%256;  // byte 1-2 packet len
+            d_psduBytes[tmpProcP+3] = tmpLen/256;
+            pmt::pmt_t tmpMeta = pmt::make_dict();
+            tmpMeta = pmt::dict_add(tmpMeta, pmt::mp("len"), pmt::from_long(tmpLen+3));
+            pmt::pmt_t tmpPayload = pmt::make_blob(&d_psduBytes[tmpProcP + 1], tmpLen+3);
+            message_port_pub(pmt::mp("out"), pmt::cons(tmpMeta, tmpPayload));
+            tmpProcP = tmpProcP + 4 + tmpLen;
+          }
+          if(tmpEof)
+          {
+            break;
+          }
+        }
+      }
+      else
+      {
+        // a and n general packet
+        if(d_m.ampdu)
+        {
+          // n ampdu, to be added
+        }
+        else
+        { 
+          d_crc32.reset();
+          d_crc32.process_bytes(d_psduBytes, d_m.len);
+          if (d_crc32.checksum() != 558161692) {
+            if(d_m.format == C8P_F_L)
+            {
+              std::cout << "ieee80211 demodcu2, legacy crc32 wrong, total:"<< d_nPktCorrect;
+              std::cout << ",0:"<<d_legacyMcsCount[0];
+              std::cout << ",1:"<<d_legacyMcsCount[1];
+              std::cout << ",2:"<<d_legacyMcsCount[2];
+              std::cout << ",3:"<<d_legacyMcsCount[3];
+              std::cout << ",4:"<<d_legacyMcsCount[4];
+              std::cout << ",5:"<<d_legacyMcsCount[5];
+              std::cout << ",6:"<<d_legacyMcsCount[6];
+              std::cout << ",7:"<<d_legacyMcsCount[7];
+              std::cout << std::endl;
+            }
+            else
+            {
+              std::cout << "ieee80211 demodcu2, ht crc32 wrong, total:"<< d_nPktCorrect;
+              std::cout << ",0:"<<d_htMcsCount[0];
+              std::cout << ",1:"<<d_htMcsCount[1];
+              std::cout << ",2:"<<d_htMcsCount[2];
+              std::cout << ",3:"<<d_htMcsCount[3];
+              std::cout << ",4:"<<d_htMcsCount[4];
+              std::cout << ",5:"<<d_htMcsCount[5];
+              std::cout << ",6:"<<d_htMcsCount[6];
+              std::cout << ",7:"<<d_htMcsCount[7];
+              std::cout << std::endl;
+            }
+          }
+          else
+          {
+            d_nPktCorrect++;
+            if(d_m.format == C8P_F_L && d_m.mcs < 8)
+            {
+              d_legacyMcsCount[d_m.mcs]++;
+              std::cout << "ieee80211 demodcu2, legacy crc32 correct, total:"<< d_nPktCorrect;
+              std::cout << ",0:"<<d_legacyMcsCount[0];
+              std::cout << ",1:"<<d_legacyMcsCount[1];
+              std::cout << ",2:"<<d_legacyMcsCount[2];
+              std::cout << ",3:"<<d_legacyMcsCount[3];
+              std::cout << ",4:"<<d_legacyMcsCount[4];
+              std::cout << ",5:"<<d_legacyMcsCount[5];
+              std::cout << ",6:"<<d_legacyMcsCount[6];
+              std::cout << ",7:"<<d_legacyMcsCount[7];
+              std::cout << std::endl;
+            }
+            else if(d_m.format == C8P_F_HT && d_m.mcs < 16)
+            {
+              d_htMcsCount[d_m.mcs%8]++;
+              std::cout << "ieee80211 demodcu2, ht crc32 correct, total:"<< d_nPktCorrect;
+              std::cout << ",0:"<<d_htMcsCount[0];
+              std::cout << ",1:"<<d_htMcsCount[1];
+              std::cout << ",2:"<<d_htMcsCount[2];
+              std::cout << ",3:"<<d_htMcsCount[3];
+              std::cout << ",4:"<<d_htMcsCount[4];
+              std::cout << ",5:"<<d_htMcsCount[5];
+              std::cout << ",6:"<<d_htMcsCount[6];
+              std::cout << ",7:"<<d_htMcsCount[7];
+              std::cout << std::endl;
+            }
+            else
+            {
+              dout << "ieee80211 demodcu2, format "<<d_m.format<<" mcs error: "<< d_m.mcs<<std::endl;
+              return;
+            }
+            pmt::pmt_t tmpMeta = pmt::make_dict();
+            tmpMeta = pmt::dict_add(tmpMeta, pmt::mp("len"), pmt::from_long(d_m.len+3));
+            pmt::pmt_t tmpPayload = pmt::make_blob(d_psduBytes, d_m.len+3);
+            message_port_pub(pmt::mp("out"), pmt::cons(tmpMeta, tmpPayload));
+          }
+        }
+      }
     }
 
     void

@@ -2,7 +2,7 @@ options:
   parameters:
     author: ''
     catch_exceptions: 'True'
-    category: '[ieee80211]'
+    category: '[ieee80211cu]'
     cmake_opt: ''
     comment: ''
     copyright: ''
@@ -52,8 +52,8 @@ blocks:
     coordinate: [336, 192.0]
     rotation: 0
     state: enabled
-- name: ieee80211_preproc_0
-  id: ieee80211_preproc
+- name: ieee80211cu_preproccu_0
+  id: ieee80211cu_preproccu
   parameters:
     affinity: ''
     alias: ''
@@ -64,9 +64,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [488, 192.0]
+    coordinate: [496, 192.0]
     rotation: 0
-    state: enabled
+    state: true
 - name: pad_sink_0
   id: pad_sink
   parameters:
@@ -125,9 +125,9 @@ blocks:
     state: true
 
 connections:
-- [blocks_delay_0, '0', ieee80211_preproc_0, '0']
-- [ieee80211_preproc_0, '0', pad_sink_0, '0']
-- [ieee80211_preproc_0, '1', pad_sink_2, '0']
+- [blocks_delay_0, '0', ieee80211cu_preproccu_0, '0']
+- [ieee80211cu_preproccu_0, '0', pad_sink_0, '0']
+- [ieee80211cu_preproccu_0, '1', pad_sink_2, '0']
 - [pad_source_0, '0', blocks_delay_0, '0']
 
 metadata:

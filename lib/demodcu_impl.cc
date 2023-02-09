@@ -106,8 +106,8 @@ namespace gr {
           d_nSigLMcs = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("mcs"), pmt::from_long(-1)));
           d_nSigLLen = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("len"), pmt::from_long(-1)));
           d_nSigLSamp = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("nsamp"), pmt::from_long(-1)));
-          std::vector<gr_complex> tmp_csi = pmt::c32vector_elements(pmt::dict_ref(d_meta, pmt::mp("csi"), pmt::PMT_NIL));
-          std::copy(tmp_csi.begin(), tmp_csi.end(), d_H);
+          std::vector<gr_complex> tmp_chan = pmt::c32vector_elements(pmt::dict_ref(d_meta, pmt::mp("chan"), pmt::PMT_NIL));
+          std::copy(tmp_chan.begin(), tmp_chan.end(), d_H);
           dout<<"ieee80211 demodcu, rd tag seq:"<<tmpPktSeq<<", mcs:"<<d_nSigLMcs<<", len:"<<d_nSigLLen<<", samp:"<<d_nSigLSamp<<std::endl;
           d_nSampConsumed = 0;
           d_nSigLSamp = d_nSigLSamp + 320;
