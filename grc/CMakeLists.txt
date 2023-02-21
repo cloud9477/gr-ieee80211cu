@@ -9,5 +9,7 @@
 install(FILES
     ieee80211cu_preproccu.block.yml
     ieee80211cu_demodcu.block.yml
-    ieee80211cu_demodcu2.block.yml DESTINATION share/gnuradio/grc/blocks
+    ieee80211cu_demodcu2.block.yml
+    ieee80211cu_modcu.block.yml
+    ieee80211cu_genpkt.block.yml DESTINATION share/gnuradio/grc/blocks
 )

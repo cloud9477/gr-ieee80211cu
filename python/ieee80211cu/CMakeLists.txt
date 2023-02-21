@@ -42,3 +42,5 @@ add_custom_target(
 GR_ADD_TEST(qa_preproccu ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_preproccu.py)
 GR_ADD_TEST(qa_demodcu ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_demodcu.py)
 GR_ADD_TEST(qa_demodcu2 ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_demodcu2.py)
+GR_ADD_TEST(qa_modcu ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_modcu.py)
+GR_ADD_TEST(qa_genpkt ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qa_genpkt.py)

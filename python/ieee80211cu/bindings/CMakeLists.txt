@@ -31,7 +31,9 @@ include(GrPybind)
 list(APPEND ieee80211cu_python_files
     preproccu_python.cc
     demodcu_python.cc
-    demodcu2_python.cc python_bindings.cc)
+    demodcu2_python.cc
+    modcu_python.cc
+    genpkt_python.cc python_bindings.cc)
 
 GR_PYBIND_MAKE_OOT(ieee80211cu
    ../../..

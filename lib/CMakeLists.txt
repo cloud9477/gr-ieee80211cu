@@ -37,6 +37,8 @@ list(APPEND ieee80211cu_sources
     demodcu_impl.cc
     demodcu2_impl.cc
     cloud80211phy.cc
+    modcu_impl.cc
+    genpkt_impl.cc
 )
 
 set(ieee80211cu_sources "${ieee80211cu_sources}" PARENT_SCOPE)

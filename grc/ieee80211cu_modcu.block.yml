@@ -1,0 +1,24 @@
+id: ieee80211cu_modcu
+label: modcu
+category: '[ieee80211cu]'
+
+templates:
+  imports: from gnuradio import ieee80211cu
+  make: ieee80211cu.modcu()
+
+inputs:
+- label: inPkt
+  domain: stream
+  dtype: byte
+
+outputs:
+- label: outSig1
+  domain: stream
+  dtype: complex
+- label: outSig2
+  domain: stream
+  dtype: complex
+
+#  'file_format' specifies the version of the GRC yml format used in the file
+#  and should usually not be changed.
+file_format: 1

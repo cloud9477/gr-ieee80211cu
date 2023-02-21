@@ -13,5 +13,7 @@ install(FILES
     api.h
     preproccu.h
     demodcu.h
-    demodcu2.h DESTINATION include/gnuradio/ieee80211cu
+    demodcu2.h
+    modcu.h
+    genpkt.h DESTINATION include/gnuradio/ieee80211cu
 )
