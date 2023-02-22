@@ -125,9 +125,35 @@ namespace gr {
       {
         std::cout<<"ieee80211 modcu, pkt format:"<<d_pktFormat<<", seq:"<<d_pktSeq<<std::endl;
         /* mod legacy sig and non-legacy sig, concatenate with training field*/
+        if(d_pktFormat == C8P_F_VHT_BFQ_R)
+        {
+          memcpy(d_vhtBfQBR, d_pkt, 1024);
+          d_sModcu = MODCU_S_RDTAG;
+        }
+        else if(d_pktFormat == C8P_F_VHT_BFQ_I)
+        {
+          memcpy(d_vhtBfQBI, d_pkt, 1024);
+          float* tmpFloatPR = (float*)d_vhtBfQBR;
+          float* tmpFloatPI = (float*)d_vhtBfQBI;
+          for(int i=0;i<256;i++)
+          {
+            d_vhtBfQ[i] = gr_complex(*tmpFloatPR, *tmpFloatPI);
+            tmpFloatPR += 1;
+            tmpFloatPI += 1;
+          }
+          d_sModcu = MODCU_S_RDTAG;
+        }
+        else if(d_pktFormat == C8P_F_VHT_MU)
+        {
+
+        }
+        else
+        {
+          
+        }
 
         /* mod data with cuda*/
-        d_sModcu = MODCU_S_RDTAG;
+        
       }
       
       if(d_sModcu == MODCU_S_COPY)

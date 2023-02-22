@@ -53,4 +53,40 @@ void cuDemodSigCopy2(int i, int j, int n, const cuFloatComplex *sig, const cuFlo
 void cuDemodSiso(c8p_mod* m, unsigned char* psduBytes);
 void cuDemodMimo(c8p_mod* m, unsigned char* psduBytes);
 
+class cloud80211modcu
+{
+  private:
+    bool initSuccess;
+    int scrambler;
+    // constants
+    unsigned char *scramSeq;
+    int *interBPSKL;
+    int *interQPSKL;
+    int *inter16QAML;
+    int *inter64QAML;
+    int *interSeqL[6];
+    int *interBPSKNL;
+    int *interQPSKNL;
+    int *inter16QAMNL;
+    int *inter64QAMNL;
+    int *inter256QAMNL;
+    int *interSeqNL[6];
+    int *interSeq;
+    // input
+    unsigned char *pkt0;
+    unsigned char *pktBits0;
+    unsigned char *pkt1;
+    unsigned char *pktBits1;
+    unsigned char *pktIntedBits;
+
+  void cuModMall();
+  void cuModFree();
+
+  public:
+    void cuModPktCopySu(int i, int n, const unsigned char *bytes);
+    void cuModSu(c8p_mod *m, cuFloatComplex *sig, unsigned char *vhtSigBCrc8Bits);
+    cloud80211modcu();
+    ~cloud80211modcu();
+};
+
 #endif /* INCLUDED_IEEE80211_SIGNAL_IMPL_H */
