@@ -75,8 +75,10 @@ class cloud80211modcu
     // input
     unsigned char *pkt0;
     unsigned char *pktBits0;
+    unsigned char *pktBitsCoded0;
     unsigned char *pkt1;
     unsigned char *pktBits1;
+    unsigned char *pktBitsCoded1;
     unsigned char *pktIntedBits;
 
   void cuModMall();

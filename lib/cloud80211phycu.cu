@@ -1354,9 +1354,15 @@ __global__ void cuCodeScramble(int n, unsigned char *bits, int init, unsigned ch
   bits[i] = bits[i] ^ desseq[indexOffset + ((i - 7) % 127)];
 }
 
-__global__ void cuCodeScramble(int n, unsigned char *bits, unsigned char *codedbits)
+__global__ void cuCodeBcc(int n, unsigned char *bits, unsigned char *codedbits)
 {
-
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if(i >= n)
+  {
+    return;
+  }
+  codedbits[i*2] = (bits[i] + bits[i+1] + bits[i+3] + bits[i+4] + bits[i+6]) % 2;
+  codedbits[i*2+1] = (bits[i] + bits[i+3] + bits[i+4] + bits[i+5] + bits[i+6]) % 2;
 }
 
 void cloud80211modcu::cuModMall()
@@ -1396,19 +1402,34 @@ void cloud80211modcu::cuModPktCopySu(int i, int n, const unsigned char *bytes)
 
 void cloud80211modcu::cuModSu(c8p_mod *m, cuFloatComplex *sig, unsigned char *vhtSigBCrc8Bits)
 {
-  cudaMemset(pktBits0, 0, sizeof(unsigned char) * m->nSym * m->nDBPS);
-  cudaMemcpy(pktBits0 + 8, vhtSigBCrc8Bits, 8*sizeof(unsigned char), cudaMemcpyHostToDevice);
-  cuCodeB2B<<<(m->len + 1023) / 1024, 1024>>>(m->len, pkt0, pktBits0);
-  cuCodeScramble<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, pktBits0, scrambler, scramSeq);
+  // 6 bits reserved for bcc init zeros
+  cudaMemset(pktBits0, 0, sizeof(unsigned char) * (m->nSym * m->nDBPS + 6));
   if(m->format == C8P_F_VHT)
   {
-
+    // vht service
+    cudaMemcpy(pktBits0 + 8 + 6, vhtSigBCrc8Bits, 8*sizeof(unsigned char), cudaMemcpyHostToDevice);
+    // psdu without padding octets or bits
+    cuCodeB2B<<<(m->len + 1023) / 1024, 1024>>>(m->len, pkt0, pktBits0 + 16 + 6);
+    // scramble all data bits except tail 6 bits for bcc
+    cuCodeScramble<<<(m->nSym * m->nDBPS - 6 + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS - 6, pktBits0 + 6, scrambler, scramSeq);
   }
   else
   {
-
+    // psdu without padding octets or bits
+    cuCodeB2B<<<(m->len + 1023) / 1024, 1024>>>(m->len, pkt0, pktBits0 + 16 + 6);
+    // scramble all data bits
+    cuCodeScramble<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, pktBits0 + 6, scrambler, scramSeq);
+    // reset the 6 bits for bcc
+    cudaMemset(pktBits0 + 6 + m->len * 8, 0, sizeof(unsigned char) * 6);
   }
-  
+  // coding
+    cuCodeBcc<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, pktBits0, pktBitsCoded0);
+  // puncturing
+  // interleaving
+  // modulation
+  // ifft
+  // guard interval
+  // windowing
 }
 
 cloud80211modcu::cloud80211modcu()
