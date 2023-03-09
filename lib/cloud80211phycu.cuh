@@ -71,15 +71,18 @@ class cloud80211modcu
     int *inter64QAMNL;
     int *inter256QAMNL;
     int *interSeqNL[6];
-    int *interSeq;
+    cuFloatComplex *modBpsk;
+    cuFloatComplex *modQpsk;
+    cuFloatComplex *mod16Qam;
+    cuFloatComplex *mod64Qam;
+    cuFloatComplex *mod256Qam;
+    cuFloatComplex *modMap[6];
     // input
-    unsigned char *pkt0;
-    unsigned char *pktBits0;
-    unsigned char *pktBitsCoded0;
-    unsigned char *pkt1;
-    unsigned char *pktBits1;
-    unsigned char *pktBitsCoded1;
-    unsigned char *pktIntedBits;
+    unsigned char *pktBytes;
+    unsigned char *pktBits;
+    unsigned char *pktBitsCoded;
+    unsigned char *pktBitsPuncd;
+    unsigned char *pktBitsInted;
 
   void cuModMall();
   void cuModFree();
