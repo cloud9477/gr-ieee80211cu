@@ -4,6 +4,7 @@
 - Replace the pre-processing, demodulation and decoding of the gr-ieee80211 to speed up the receptions.
 - On Ubuntu 22.04 GNU Radio 3.10.
 - For more information about how to use the IEEE 802.11 stack, please refer to [gr-ieee80211](https://github.com/cloud9477/gr-ieee80211) first.
+- **Not finished yet, will be published and released in May 2023**
 
 Installation
 ------------
