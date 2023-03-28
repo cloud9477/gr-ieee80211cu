@@ -60,29 +60,26 @@ class cloud80211modcu
     int scrambler;
     // constants
     unsigned char *scramSeq;
-    int *interBPSKL;
-    int *interQPSKL;
-    int *inter16QAML;
-    int *inter64QAML;
-    int *interSeqL[6];
-    int *interBPSKNL;
-    int *interQPSKNL;
-    int *inter16QAMNL;
-    int *inter64QAMNL;
-    int *inter256QAMNL;
-    int *interSeqNL[6];
-    cuFloatComplex *modBpsk;
-    cuFloatComplex *modQpsk;
-    cuFloatComplex *mod16Qam;
-    cuFloatComplex *mod64Qam;
-    cuFloatComplex *mod256Qam;
-    cuFloatComplex *modMap[6];
+    int *interLutL;
+    int *interLutLIdx[6];
+    int *interLutNL;
+    int *interLutNLIdx[6];
+    cuFloatComplex *qamLut;
+    cuFloatComplex *qamLutIdx[6];
+    cuFloatComplex* pilotsL;
+    cuFloatComplex* pilotsHT;
+    cuFloatComplex* pilotsHT2;
+    cuFloatComplex* pilotsVHT;
+    cuFloatComplex* pilotsVHT2;
     // input
     unsigned char *pktBytes;
     unsigned char *pktBits;
     unsigned char *pktBitsCoded;
     unsigned char *pktBitsPuncd;
     unsigned char *pktBitsInted;
+    cuFloatComplex *pktSymFreq;
+    cuFloatComplex *pktSymTime;
+    cuFloatComplex *pktSymbol;
 
   void cuModMall();
   void cuModFree();

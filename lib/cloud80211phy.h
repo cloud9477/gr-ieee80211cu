@@ -139,6 +139,12 @@ extern const float LTF_L_26_F_FLOAT[64];
 extern const float LTF_NL_28_F_FLOAT[64];
 extern const float LTF_NL_28_F_FLOAT2[64];
 
+extern const gr_complex C8P_QAM_TAB_BPSK[2];
+extern const gr_complex C8P_QAM_TAB_QPSK[4];
+extern const gr_complex C8P_QAM_TAB_16QAM[16];
+extern const gr_complex C8P_QAM_TAB_64QAM[64];
+extern const gr_complex C8P_QAM_TAB_256QAM[256];
+
 extern const int mapIntelLegacyBpsk[48];
 extern const int mapIntelLegacyQpsk[96];
 extern const int mapIntelLegacy16Qam[192];

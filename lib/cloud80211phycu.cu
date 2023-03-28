@@ -1431,17 +1431,57 @@ __global__ void cuCodeInterleave(int n, int ncbps, int* intmap, unsigned char *p
   intedbits[j * ncbps + intmap[k]] = puncdbits[i];
 }
 
-__global__ void cuModulation(int n, int ncbps, int* intmap, unsigned char *puncdbits, unsigned char *intedbits)
+__global__ void cuQamModSiso(int n, int nbpscs, cuFloatComplex* qammap, int *scmap, cuFloatComplex* pilots, unsigned char *intedbits, cuFloatComplex *symfreq)
 {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   int j, k;
-  if(i >= n)
+  int qamIndex = 0;
+  if(n > 0)
+  {
+    // legacy
+    j = i / 48;
+    k = i % 48;
+    if(i >= n)
+    {
+      return;
+    }
+  }
+  else
+  {
+    // non legacy
+    j = i / 52;
+    k = i % 52;
+    if(i >= (-n))
+    {
+      return;
+    }
+  }
+  for(int p=0;p<nbpscs;p++)
+  {
+    qamIndex |= (intedbits[i*nbpscs+p] << i);
+  }
+  symfreq[j*64 + scmap[k]] = qammap[qamIndex];
+  // insert 4 pilots
+  if(k == 0)
+  {
+    symfreq[j*64 + 43] = pilots[j*4];
+  }
+  else if(k == 1)
+  {
+    symfreq[j*64 + 57] = pilots[j*4+1];
+  }
+  else if(k == 2)
+  {
+    symfreq[j*64 + 7] = pilots[j*4+2];
+  }
+  else if(k == 3)
+  {
+    symfreq[j*64 + 21] = pilots[j*4+3];
+  }
+  else
   {
     return;
   }
-  j = i / ncbps;
-  k = i % ncbps;
-  intedbits[j * ncbps + intmap[k]] = puncdbits[i];
 }
 
 void cloud80211modcu::cuModMall()
@@ -1450,47 +1490,144 @@ void cloud80211modcu::cuModMall()
   err = cudaMalloc(&scramSeq, sizeof(unsigned char) * 128 * 127);
   if(err){ std::cout<<"cloud80211modcu, malloc code scramSeq error."<<std::endl; initSuccess = false; return;}
   cudaMemcpy(scramSeq, C8P_SCRAMBLE_SEQ, sizeof(unsigned char) * 128 * 127, cudaMemcpyHostToDevice);
-  err = cudaMalloc(&interBPSKL, sizeof(int) * 48);
-  if(err){ std::cout<<"cloud80211modcu, malloc interBPSKL error."<<std::endl; initSuccess = false; return;}
-  err = cudaMalloc(&interQPSKL, sizeof(int) * 96);
-  if(err){ std::cout<<"cloud80211modcu, malloc interQPSKL error."<<std::endl; initSuccess = false; return;}
-  err = cudaMalloc(&inter16QAML, sizeof(int) * 192);
-  if(err){ std::cout<<"cloud80211modcu, malloc inter16QAML error."<<std::endl; initSuccess = false; return;}
-  err = cudaMalloc(&inter64QAML, sizeof(int) * 288);
-  if(err){ std::cout<<"cloud80211modcu, malloc inter64QAML error."<<std::endl; initSuccess = false; return;}
-  err = cudaMalloc(&interBPSKNL, sizeof(int) * 52);
-  if(err){ std::cout<<"cloud80211modcu, malloc interBPSKNL error."<<std::endl; initSuccess = false; return;}
-  err = cudaMalloc(&interQPSKNL, sizeof(int) * 104);
-  if(err){ std::cout<<"cloud80211modcu, malloc interQPSKNL error."<<std::endl; initSuccess = false; return;}
-  err = cudaMalloc(&inter16QAMNL, sizeof(int) * 208);
-  if(err){ std::cout<<"cloud80211modcu, malloc inter16QAMNL error."<<std::endl; initSuccess = false; return;}
-  err = cudaMalloc(&inter64QAMNL, sizeof(int) * 312);
-  if(err){ std::cout<<"cloud80211modcu, malloc inter64QAMNL error."<<std::endl; initSuccess = false; return;}
-  err = cudaMalloc(&inter256QAMNL, sizeof(int) * 416);
-  if(err){ std::cout<<"cloud80211modcu, malloc inter256QAMNL error."<<std::endl; initSuccess = false; return;}
-  cudaMemcpy(interBPSKL, mapIntelLegacyBpsk, sizeof(int) * 48, cudaMemcpyHostToDevice);
-  cudaMemcpy(interQPSKL, mapIntelLegacyQpsk, sizeof(int) * 96, cudaMemcpyHostToDevice);
-  cudaMemcpy(inter16QAML, mapIntelLegacy16Qam, sizeof(int) * 192, cudaMemcpyHostToDevice);
-  cudaMemcpy(inter64QAML, mapIntelLegacy64Qam, sizeof(int) * 288, cudaMemcpyHostToDevice);
-  cudaMemcpy(interBPSKNL, mapIntelNonlegacyBpsk, sizeof(int) * 52, cudaMemcpyHostToDevice);
-  cudaMemcpy(interQPSKNL, mapIntelNonlegacyQpsk, sizeof(int) * 104, cudaMemcpyHostToDevice);
-  cudaMemcpy(inter16QAMNL, mapIntelNonlegacy16Qam, sizeof(int) * 208, cudaMemcpyHostToDevice);
-  cudaMemcpy(inter64QAMNL, mapIntelNonlegacy64Qam, sizeof(int) * 312, cudaMemcpyHostToDevice);
-  cudaMemcpy(inter64QAMNL, mapIntelNonlegacy256Qam, sizeof(int) * 416, cudaMemcpyHostToDevice);
+  err = cudaMalloc(&interLutL, sizeof(int) * (48 + 96 + 192 + 288));
+  if(err){ std::cout<<"cloud80211modcu, malloc interLutL error."<<std::endl; initSuccess = false; return;}
+  err = cudaMalloc(&interLutNL, sizeof(int) * (52 + 104 + 208 + 312 + 416));
+  if(err){ std::cout<<"cloud80211modcu, malloc interLutNL error."<<std::endl; initSuccess = false; return;}
+  cudaMemcpy(interLutL, mapIntelLegacyBpsk, sizeof(int) * 48, cudaMemcpyHostToDevice);
+  cudaMemcpy(interLutL + 48, mapIntelLegacyQpsk, sizeof(int) * 96, cudaMemcpyHostToDevice);
+  cudaMemcpy(interLutL + 48 + 96, mapIntelLegacy16Qam, sizeof(int) * 192, cudaMemcpyHostToDevice);
+  cudaMemcpy(interLutL + 48 + 96 + 192, mapIntelLegacy64Qam, sizeof(int) * 288, cudaMemcpyHostToDevice);
+  cudaMemcpy(interLutNL, mapIntelNonlegacyBpsk, sizeof(int) * 52, cudaMemcpyHostToDevice);
+  cudaMemcpy(interLutNL + 52, mapIntelNonlegacyQpsk, sizeof(int) * 104, cudaMemcpyHostToDevice);
+  cudaMemcpy(interLutNL + 52 + 104, mapIntelNonlegacy16Qam, sizeof(int) * 208, cudaMemcpyHostToDevice);
+  cudaMemcpy(interLutNL + 52 + 104 + 208, mapIntelNonlegacy64Qam, sizeof(int) * 312, cudaMemcpyHostToDevice);
+  cudaMemcpy(interLutNL + 52 + 104 + 208 + 312, mapIntelNonlegacy256Qam, sizeof(int) * 416, cudaMemcpyHostToDevice);
   for(int i=0;i<6;i++)
   {
-    interSeqL[i] = NULL;
-    interSeqNL[i] = NULL;
+    interLutLIdx[i] = NULL;
+    interLutNLIdx[i] = NULL;
   }
-  interSeqL[C8P_QAM_BPSK] = interBPSKL;
-  interSeqL[C8P_QAM_QPSK] = interQPSKL;
-  interSeqL[C8P_QAM_16QAM] = inter16QAML;
-  interSeqL[C8P_QAM_64QAM] = inter64QAML;
-  interSeqNL[C8P_QAM_BPSK] = interBPSKNL;
-  interSeqNL[C8P_QAM_QPSK] = interQPSKNL;
-  interSeqNL[C8P_QAM_16QAM] = inter16QAMNL;
-  interSeqNL[C8P_QAM_64QAM] = inter64QAMNL;
-  interSeqNL[C8P_QAM_256QAM] = inter256QAMNL;
+  interLutLIdx[C8P_QAM_BPSK] = interLutL;
+  interLutLIdx[C8P_QAM_QPSK] = interLutL + 48;
+  interLutLIdx[C8P_QAM_16QAM] = interLutL + 48 + 96;
+  interLutLIdx[C8P_QAM_64QAM] = interLutL + 48 + 96 + 192;
+  interLutNLIdx[C8P_QAM_BPSK] = interLutNL;
+  interLutNLIdx[C8P_QAM_QPSK] = interLutNL + 52;
+  interLutNLIdx[C8P_QAM_16QAM] = interLutNL + 52 + 104;
+  interLutNLIdx[C8P_QAM_64QAM] = interLutNL + 52 + 104 + 208;
+  interLutNLIdx[C8P_QAM_256QAM] = interLutNL + 52 + 104 + 208 + 312;
+  err = cudaMalloc(&qamLut, sizeof(cuFloatComplex) * (2 + 4 + 16 + 64 + 256));
+  if(err){ std::cout<<"cloud80211modcu, malloc qamLut error."<<std::endl; initSuccess = false; return;}
+  cudaMemcpy(qamLut, (const cuFloatComplex*) C8P_QAM_TAB_BPSK, sizeof(cuFloatComplex) * 2, cudaMemcpyHostToDevice);
+  cudaMemcpy(qamLut + 2, (const cuFloatComplex*) C8P_QAM_TAB_QPSK, sizeof(cuFloatComplex) * 4, cudaMemcpyHostToDevice);
+  cudaMemcpy(qamLut + 2 + 4, (const cuFloatComplex*) C8P_QAM_TAB_16QAM, sizeof(cuFloatComplex) * 16, cudaMemcpyHostToDevice);
+  cudaMemcpy(qamLut + 2 + 4 + 16, (const cuFloatComplex*) C8P_QAM_TAB_64QAM, sizeof(cuFloatComplex) * 64, cudaMemcpyHostToDevice);
+  cudaMemcpy(qamLut + 2 + 4 + 16 + 64, (const cuFloatComplex*) C8P_QAM_TAB_256QAM, sizeof(cuFloatComplex) * 256, cudaMemcpyHostToDevice);
+  qamLutIdx[C8P_QAM_BPSK] = qamLut;
+  qamLutIdx[C8P_QAM_QPSK] = qamLut + 2;
+  qamLutIdx[C8P_QAM_16QAM] = qamLut + 2 + 4;
+  qamLutIdx[C8P_QAM_64QAM] = qamLut + 2 + 4 + 16;
+  qamLutIdx[C8P_QAM_256QAM] = qamLut + 2 + 4 + 16 + 64;
+
+  err = cudaMalloc(&pilotsL, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 4);
+  if(err){ std::cout<<"cloud80211modcu, malloc pilotsL error."<<std::endl; initSuccess = false; return;}
+  err = cudaMalloc(&pilotsHT, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 4);
+  if(err){ std::cout<<"cloud80211modcu, malloc pilotsL error."<<std::endl; initSuccess = false; return;}
+  err = cudaMalloc(&pilotsHT2, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 8);
+  if(err){ std::cout<<"cloud80211modcu, malloc pilotsL error."<<std::endl; initSuccess = false; return;}
+  err = cudaMalloc(&pilotsVHT, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 4);
+  if(err){ std::cout<<"cloud80211modcu, malloc pilotsL error."<<std::endl; initSuccess = false; return;}
+  err = cudaMalloc(&pilotsVHT2, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 8);
+  if(err){ std::cout<<"cloud80211modcu, malloc pilotsL error."<<std::endl; initSuccess = false; return;}
+
+  cuFloatComplex pListTmp[CUDEMOD_S_MAX * 8];
+  for(int i=0;i<CUDEMOD_S_MAX;i++)
+  {
+    pListTmp[i*4] = make_cuFloatComplex(1.0f * PILOT_P[(i+1)%127], 0.0f);
+    pListTmp[i*4+1] = make_cuFloatComplex(1.0f * PILOT_P[(i+1)%127], 0.0f);
+    pListTmp[i*4+2] = make_cuFloatComplex(1.0f * PILOT_P[(i+1)%127], 0.0f);
+    pListTmp[i*4+3] = make_cuFloatComplex(-1.0f * PILOT_P[(i+1)%127], 0.0f);
+  }
+  cudaMemcpy(pilotsL, pListTmp, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 4, cudaMemcpyHostToDevice);
+  float pTmp[4] = {1.0f, 1.0f, 1.0f, -1.0f};
+  for(int i=0;i<CUDEMOD_S_MAX;i++)
+  {
+    pListTmp[i*4] = make_cuFloatComplex(pTmp[0] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*4+1] = make_cuFloatComplex(pTmp[1] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*4+2] = make_cuFloatComplex(pTmp[2] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*4+3] = make_cuFloatComplex(pTmp[3] * PILOT_P[(i+3)%127], 0.0f);
+
+    float tmpPilot = pTmp[0];
+    pTmp[0] = pTmp[1];
+    pTmp[1] = pTmp[2];
+    pTmp[2] = pTmp[3];
+    pTmp[3] = tmpPilot;
+  }
+  cudaMemcpy(pilotsHT, pListTmp, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 4, cudaMemcpyHostToDevice);
+  float pTmp2[4] = {1.0f, 1.0f, 1.0f, -1.0f};
+  for(int i=0;i<CUDEMOD_S_MAX;i++)
+  {
+    pListTmp[i*4] = make_cuFloatComplex(pTmp2[0] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*4+1] = make_cuFloatComplex(pTmp2[1] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*4+2] = make_cuFloatComplex(pTmp2[2] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*4+3] = make_cuFloatComplex(pTmp2[3] * PILOT_P[(i+4)%127], 0.0f);
+
+    float tmpPilot = pTmp2[0];
+    pTmp2[0] = pTmp2[1];
+    pTmp2[1] = pTmp2[2];
+    pTmp2[2] = pTmp2[3];
+    pTmp2[3] = tmpPilot;
+  }
+  cudaMemcpy(pilotsVHT, pListTmp, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 4, cudaMemcpyHostToDevice);
+  float pTmp3[8] = {1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f};
+  for(int i=0;i<CUDEMOD_S_MAX;i++)
+  {
+    pListTmp[i*8]   = make_cuFloatComplex(pTmp3[0] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8+1] = make_cuFloatComplex(pTmp3[1] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8+2] = make_cuFloatComplex(pTmp3[2] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8+3] = make_cuFloatComplex(pTmp3[3] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8+4] = make_cuFloatComplex(pTmp3[4] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8+5] = make_cuFloatComplex(pTmp3[5] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8+6] = make_cuFloatComplex(pTmp3[6] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8+7] = make_cuFloatComplex(pTmp3[7] * PILOT_P[(i+3)%127], 0.0f);
+
+    float tmpPilot = pTmp3[0];
+    pTmp3[0] = pTmp3[1];
+    pTmp3[1] = pTmp3[2];
+    pTmp3[2] = pTmp3[3];
+    pTmp3[3] = tmpPilot;
+    tmpPilot = pTmp3[4];
+    pTmp3[4] = pTmp3[5];
+    pTmp3[5] = pTmp3[6];
+    pTmp3[6] = pTmp3[7];
+    pTmp3[7] = tmpPilot;
+  }
+  cudaMemcpy(pilotsHT2, pListTmp, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 8, cudaMemcpyHostToDevice);
+  float pTmp4[8] = {1.0f, 1.0f, 1.0f, -1.0f, 1.0f, 1.0f, 1.0f, -1.0f};
+  for(int i=0;i<CUDEMOD_S_MAX;i++)
+  {
+    pListTmp[i*8]   = make_cuFloatComplex(pTmp4[0] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8+1] = make_cuFloatComplex(pTmp4[1] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8+2] = make_cuFloatComplex(pTmp4[2] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8+3] = make_cuFloatComplex(pTmp4[3] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8+4] = make_cuFloatComplex(pTmp4[4] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8+5] = make_cuFloatComplex(pTmp4[5] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8+6] = make_cuFloatComplex(pTmp4[6] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8+7] = make_cuFloatComplex(pTmp4[7] * PILOT_P[(i+4)%127], 0.0f);
+
+    float tmpPilot = pTmp4[0];
+    pTmp4[0] = pTmp4[1];
+    pTmp4[1] = pTmp4[2];
+    pTmp4[2] = pTmp4[3];
+    pTmp4[3] = tmpPilot;
+    tmpPilot = pTmp4[4];
+    pTmp4[4] = pTmp4[5];
+    pTmp4[5] = pTmp4[6];
+    pTmp4[6] = pTmp4[7];
+    pTmp4[7] = tmpPilot;
+  }
+  cudaMemcpy(pilotsVHT2, pListTmp, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 8, cudaMemcpyHostToDevice);
 
   err = cudaMalloc(&pktBytes, sizeof(unsigned char) * CUDEMOD_B_MAX);
   if(err){ std::cout<<"cloud80211modcu, malloc pktBytes error."<<std::endl; initSuccess = false; return;}
@@ -1502,6 +1639,12 @@ void cloud80211modcu::cuModMall()
   if(err){ std::cout<<"cloud80211modcu, malloc pktBitsPuncd error."<<std::endl; initSuccess = false; return;}
   err = cudaMalloc(&pktBitsInted, sizeof(unsigned char) * CUDEMOD_L_MAX);
   if(err){ std::cout<<"cloud80211modcu, malloc pktBitsInted error."<<std::endl; initSuccess = false; return;}
+  err = cudaMalloc(&pktSymFreq, sizeof(cuFloatComplex) * CUDEMOD_L_MAX);
+  if(err){ std::cout<<"cloud80211modcu, malloc pktSymFreq error."<<std::endl; initSuccess = false; return;}
+  err = cudaMalloc(&pktSymTime, sizeof(cuFloatComplex) * CUDEMOD_L_MAX);
+  if(err){ std::cout<<"cloud80211modcu, malloc pktSymTime error."<<std::endl; initSuccess = false; return;}
+  err = cudaMalloc(&pktSymbol, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 80);
+  if(err){ std::cout<<"cloud80211modcu, malloc pktSymbol error."<<std::endl; initSuccess = false; return;}
 }
 
 void cloud80211modcu::cuModFree()
@@ -1548,11 +1691,11 @@ void cloud80211modcu::cuModSu(c8p_mod *m, cuFloatComplex *sig, unsigned char *vh
   // interleaving
   if(m->format == C8P_F_L)
   {
-    cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interSeqL[m->mod], pktBitsPuncd, pktBitsInted);
+    cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutLIdx[m->mod], pktBitsPuncd, pktBitsInted);
   }
   else
   {
-    cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interSeqNL[m->mod], pktBitsPuncd, pktBitsInted);
+    cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutNLIdx[m->mod], pktBitsPuncd, pktBitsInted);
   }
   // modulation
   // ifft
