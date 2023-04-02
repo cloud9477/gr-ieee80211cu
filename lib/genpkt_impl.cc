@@ -156,13 +156,13 @@ namespace gr {
       {
         if(d_nGen >= (d_nTotal - d_nCopied))
         {
-          memcpy(outPkt, d_pktV.data() + d_nCopied, (d_nTotal - d_nCopied));
+          memcpy(outPkt, d_pktV.data() + d_headerShift + d_nCopied, (d_nTotal - d_nCopied));
           d_sEncode = GENPKT_S_IDLE;
           return (d_nTotal - d_nCopied);
         }
         else
         {
-          memcpy(outPkt, d_pktV.data() + d_nCopied, d_nGen);
+          memcpy(outPkt, d_pktV.data() + d_headerShift + d_nCopied, d_nGen);
           d_nCopied += d_nGen;
           return d_nGen;
         }

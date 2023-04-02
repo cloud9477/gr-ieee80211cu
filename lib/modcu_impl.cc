@@ -41,6 +41,12 @@ namespace gr {
               gr::io_signature::make(2, 2, sizeof(gr_complex)))
     {
       d_sModcu = MODCU_S_RDTAG;
+      memset(d_pktVhtSigBCrc, 0, 8);
+      memset(d_pkt, 0, CUDEMOD_B_MAX);
+      memset((uint8_t*) d_sig, 0, sizeof(gr_complex) * CUDEMOD_S_MAX * 80);
+
+      d_nSampTotal = 0;
+      d_nSampCopied = 0;
     }
 
     /*
@@ -98,7 +104,12 @@ namespace gr {
             d_pktNss1 = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("nss1"), pmt::from_long(-1)));
             d_pktLen1 = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("len1"), pmt::from_long(-1)));
             d_pktMuGroupId = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("gid"), pmt::from_long(-1)));
+            std::cout<<"ieee80211 modcu, mu #"<<d_pktSeq<<", mcs0:"<<d_pktMcs0<<", nss0:"<<d_pktNss0<<", len0:"<<d_pktLen0<<", mcs1:"<<d_pktMcs1<<", nss1:"<<d_pktNss1<<", len1:"<<d_pktLen1<<std::endl;
             d_nPktTotal += d_pktLen1;
+          }
+          else
+          {
+            std::cout<<"ieee80211 modcu, su #"<<d_pktSeq<<", format:"<<d_pktFormat<<", mcs:"<<d_pktMcs0<<", nss:"<<d_pktNss0<<", len:"<<d_pktLen0<<std::endl;
           }
           d_nPktRead = 0;
           d_sModcu = MODCU_S_RDPKT;
@@ -112,6 +123,7 @@ namespace gr {
           memcpy(d_pkt + d_nPktRead, inPkt, (d_nPktTotal - d_nPktRead));
           d_nUsed += (d_nPktTotal - d_nPktRead);
           d_sModcu = MODCU_S_MOD;
+          std::cout<<"ieee80211 modcu, get packet."<<std::endl;
         }
         else
         {
@@ -123,7 +135,6 @@ namespace gr {
       
       if(d_sModcu == MODCU_S_MOD)
       {
-        std::cout<<"ieee80211 modcu, pkt format:"<<d_pktFormat<<", seq:"<<d_pktSeq<<std::endl;
         /* mod legacy sig and non-legacy sig, concatenate with training field*/
         if(d_pktFormat == C8P_F_VHT_BFQ_R)
         {
@@ -145,20 +156,30 @@ namespace gr {
         }
         else if(d_pktFormat == C8P_F_VHT_MU)
         {
-
+          // MU
         }
         else
         {
-          
+          // SU
+          std::cout<<"single user packet payload:"<<std::endl;
+          std::cout << std::hex;
+          for(int i=0;i<d_pktLen0;i++)
+          {
+            std::cout<< (int)d_pkt[i] << " ";
+          }
+          std::cout<<std::endl;
+          std::cout << std::dec;
+          d_modcu.cuModPktCopySu(0, d_nPktTotal, d_pkt);
+          formatToModSu(&d_m, d_pktFormat, d_pktMcs0, d_pktNss0, d_pktLen0);
+          d_modcu.cuModSu(&d_m, (cuFloatComplex*) d_sig, d_pktVhtSigBCrc);
+          d_nSampTotal = d_m.nSym * d_m.nSymSamp;
+          d_sModcu = MODCU_S_COPY;
         }
-
-        /* mod data with cuda*/
-        
       }
       
       if(d_sModcu == MODCU_S_COPY)
       {
-
+        d_sModcu = MODCU_S_RDTAG;
       }
 
       consume_each (d_nUsed);

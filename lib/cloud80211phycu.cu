@@ -1343,7 +1343,7 @@ void cuCodeB2B(int n, unsigned char *bytes, unsigned char *bits)
   }
 }
 
-__global__ void cuCodeScramble(int n, unsigned char *bits, int init, unsigned char *desseq)
+__global__ void cuCodeScramble(int n, unsigned char *bits, int init, unsigned char *sseq)
 {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   int indexOffset = init * 127;
@@ -1351,7 +1351,7 @@ __global__ void cuCodeScramble(int n, unsigned char *bits, int init, unsigned ch
   {
     return;
   }
-  bits[i] = bits[i] ^ desseq[indexOffset + ((i - 7) % 127)];
+  bits[i] = bits[i] ^ sseq[indexOffset + (i % 127)];
 }
 
 __global__ void cuCodeBcc(int n, unsigned char *bits, unsigned char *codedbits)
@@ -1650,11 +1650,23 @@ void cloud80211modcu::cuModMall()
 void cloud80211modcu::cuModFree()
 {
   cudaFree(scramSeq);
+  cudaFree(interLutL);
+  cudaFree(interLutNL);
+  cudaFree(qamLut);
+  cudaFree(pilotsL);
+  cudaFree(pilotsHT);
+  cudaFree(pilotsHT2);
+  cudaFree(pilotsVHT);
+  cudaFree(pilotsVHT2);
+
   cudaFree(pktBytes);
   cudaFree(pktBits);
   cudaFree(pktBitsCoded);
   cudaFree(pktBitsPuncd);
   cudaFree(pktBitsInted);
+  cudaFree(pktSymFreq);
+  cudaFree(pktSymTime);
+  cudaFree(pktSymbol);
 }
 
 void cloud80211modcu::cuModPktCopySu(int i, int n, const unsigned char *bytes)
@@ -1665,6 +1677,7 @@ void cloud80211modcu::cuModPktCopySu(int i, int n, const unsigned char *bytes)
 void cloud80211modcu::cuModSu(c8p_mod *m, cuFloatComplex *sig, unsigned char *vhtSigBCrc8Bits)
 {
   // 6 bits reserved for bcc init zeros
+  std::cout<<"cu reset"<<std::endl;
   cudaMemset(pktBits, 0, sizeof(unsigned char) * (m->nSym * m->nDBPS + 6));
   if(m->format == C8P_F_VHT)
   {
@@ -1677,26 +1690,27 @@ void cloud80211modcu::cuModSu(c8p_mod *m, cuFloatComplex *sig, unsigned char *vh
   }
   else
   {
+    std::cout<<"cu legacy or ht"<<std::endl;
     // psdu without padding octets or bits
     cuCodeB2B<<<(m->len + 1023) / 1024, 1024>>>(m->len, pktBytes, pktBits + 16 + 6);
     // scramble all data bits
     cuCodeScramble<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, pktBits + 6, scrambler, scramSeq);
     // reset the 6 bits for bcc
-    cudaMemset(pktBits + 6 + m->len * 8, 0, sizeof(unsigned char) * 6);
+    cudaMemset(pktBits + 6 + 16 + m->len * 8, 0, sizeof(unsigned char) * 6);
   }
   // coding
   cuCodeBcc<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, pktBits, pktBitsCoded);
   // puncturing
-  cuCodePunc<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, m->cr, pktBitsCoded, pktBitsPuncd);
+  // cuCodePunc<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, m->cr, pktBitsCoded, pktBitsPuncd);
   // interleaving
-  if(m->format == C8P_F_L)
-  {
-    cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutLIdx[m->mod], pktBitsPuncd, pktBitsInted);
-  }
-  else
-  {
-    cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutNLIdx[m->mod], pktBitsPuncd, pktBitsInted);
-  }
+  // if(m->format == C8P_F_L)
+  // {
+  //   cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutLIdx[m->mod], pktBitsPuncd, pktBitsInted);
+  // }
+  // else
+  // {
+  //   cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutNLIdx[m->mod], pktBitsPuncd, pktBitsInted);
+  // }
   // modulation
   // ifft
   // guard interval

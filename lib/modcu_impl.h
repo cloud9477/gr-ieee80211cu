@@ -56,11 +56,18 @@ namespace gr {
       int d_pktMuGroupId;
       int d_nPktTotal;
       int d_nPktRead;
+      uint8_t d_pktVhtSigBCrc[8];
       uint8_t d_pkt[CUDEMOD_B_MAX];
+      gr_complex d_sig[CUDEMOD_S_MAX * 80];
       // modulation
+      c8p_mod d_m;
+      cloud80211modcu d_modcu;
       uint8_t d_vhtBfQBR[1024];
       uint8_t d_vhtBfQBI[1024];
       gr_complex d_vhtBfQ[256];
+      // copy samples out
+      int d_nSampTotal;
+      int d_nSampCopied;
 
      public:
       modcu_impl();
