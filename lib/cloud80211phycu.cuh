@@ -66,11 +66,14 @@ class cloud80211modcu
     int *interLutNLIdx[6];
     cuFloatComplex *qamLut;
     cuFloatComplex *qamLutIdx[6];
-    cuFloatComplex* pilotsL;
-    cuFloatComplex* pilotsHT;
-    cuFloatComplex* pilotsHT2;
-    cuFloatComplex* pilotsVHT;
-    cuFloatComplex* pilotsVHT2;
+    int *qamScMapL;
+    int *qamScMapNL;
+    cuFloatComplex *pilotsL;
+    cuFloatComplex *pilotsHT;
+    cuFloatComplex *pilotsHT2;
+    cuFloatComplex *pilotsVHT;
+    cuFloatComplex *pilotsVHT2;
+    cufftHandle ifftModPlan;
     // input
     unsigned char *pktBytes;
     unsigned char *pktBits;
@@ -79,7 +82,7 @@ class cloud80211modcu
     unsigned char *pktBitsInted;
     cuFloatComplex *pktSymFreq;
     cuFloatComplex *pktSymTime;
-    cuFloatComplex *pktSymbol;
+    cuFloatComplex *pktSym;
 
   void cuModMall();
   void cuModFree();
