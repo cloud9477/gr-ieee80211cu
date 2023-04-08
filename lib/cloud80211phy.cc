@@ -50,6 +50,9 @@ const int FFT_26_SHIFT_DEMAP[128] = {
 	57, 58, 59, 60, 61, 62, 63, 64, 65, -1, 66, 67, 68, 69, 70, 71
 };
 
+const int QAM_TO_SC_MAP_L[48] = {38, 39, 40, 41, 42, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 58, 59, 60, 61, 62, 63, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 25, 26};
+const int QAM_TO_SC_MAP_NL[52] = {36, 37, 38, 39, 40, 41, 42, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 58, 59, 60, 61, 62, 63, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 25, 26, 27, 28};
+
 const gr_complex LTF_L_26_F_COMP[64] = {
     gr_complex(0.0f, 0.0f), gr_complex(1.0f, 0.0f), gr_complex(-1.0f, 0.0f), gr_complex(-1.0f, 0.0f), 
     gr_complex(1.0f, 0.0f), gr_complex(1.0f, 0.0f), gr_complex(-1.0f, 0.0f), gr_complex(1.0f, 0.0f), 
@@ -162,7 +165,6 @@ const gr_complex C8P_STF_F[64] = {
 	gr_complex(-1.0f, -1.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), 
 	gr_complex(-1.0f, -1.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), 
 	gr_complex(1.0f, 1.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f),
-
 	gr_complex(0.0f, 0.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), 
 	gr_complex(-1.0f, -1.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), 
 	gr_complex(-1.0f, -1.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), gr_complex(0.0f, 0.0f)/sqrtf(2.0f), 
@@ -2806,3 +2808,158 @@ void htSigBitsGen(uint8_t* sigbits, uint8_t* sigbitscoded, c8p_mod* mod)
 	bccEncoder(sigbits, sigbitscoded, 48);
 }
 
+void procSigQamMod(uint8_t *intedbits, gr_complex *sig)
+{
+	memset(sig, 0, sizeof(gr_complex) * 64);
+	for(int i=0; i<48;i++)
+	{
+		sig[QAM_TO_SC_MAP_L[i]] = C8P_QAM_TAB_BPSK[intedbits[i]];
+	}
+	sig[43] = C8P_QAM_TAB_BPSK[1];
+	sig[57] = C8P_QAM_TAB_BPSK[1];
+	sig[7] = C8P_QAM_TAB_BPSK[1];
+	sig[21] = C8P_QAM_TAB_BPSK[0];
+}
+
+c8p_preamble::c8p_preamble():ofdmIfft(64,1)
+{
+	// prepare training fields
+	gr_complex tmpSig[64];
+	gr_complex tmpValue;
+	// legacy stf and non legacy stf
+	memcpy(ofdmIfft.get_inbuf(), C8P_STF_F + 32, 32*sizeof(gr_complex));
+	memcpy(ofdmIfft.get_inbuf() + 32, C8P_STF_F, 32*sizeof(gr_complex));
+	ofdmIfft.execute();
+	memcpy(tmpSig, ofdmIfft.get_outbuf(), 64*sizeof(gr_complex));
+	memcpy(&stfltfl0[0], &tmpSig[32], 32*sizeof(gr_complex));
+	memcpy(&stfltfl0[32], &tmpSig[0], 64*sizeof(gr_complex));
+	memcpy(&stfltfl0[96], &tmpSig[0], 64*sizeof(gr_complex));
+	memcpy(&stfnl0[0], &tmpSig[48], 16*sizeof(gr_complex));
+	memcpy(&stfnl0[16], &tmpSig[0], 64*sizeof(gr_complex));
+	// legacy ltf
+	memcpy(ofdmIfft.get_inbuf(), C8P_LTF_L_F + 32, 32*sizeof(gr_complex));
+	memcpy(ofdmIfft.get_inbuf() + 32, C8P_LTF_L_F, 32*sizeof(gr_complex));
+	ofdmIfft.execute();
+	memcpy(tmpSig, ofdmIfft.get_outbuf(), 64*sizeof(gr_complex));
+	memcpy(&stfltfl0[160], &tmpSig[32], 32*sizeof(gr_complex));
+	memcpy(&stfltfl0[192], &tmpSig[0], 64*sizeof(gr_complex));
+	memcpy(&stfltfl0[256], &tmpSig[0], 64*sizeof(gr_complex));
+	// windowing stf and ltf
+	tmpValue = (stfltfl0[159] + stfltfl0[160]) / 2.0f;
+	stfltfl0[159] = tmpValue;
+	stfltfl0[160] = tmpValue;
+
+	// legacy stf with csd -200 for 2nd stream
+	memcpy(tmpSig, C8P_STF_F, 64*sizeof(gr_complex));
+	procCSD(tmpSig, -200);
+	memcpy(ofdmIfft.get_inbuf(), tmpSig + 32, 32*sizeof(gr_complex));
+	memcpy(ofdmIfft.get_inbuf() + 32, tmpSig, 32*sizeof(gr_complex));
+	ofdmIfft.execute();
+	memcpy(tmpSig, ofdmIfft.get_outbuf(), 64*sizeof(gr_complex));
+	memcpy(&stfltfl1[0], &tmpSig[32], 32*sizeof(gr_complex));
+	memcpy(&stfltfl1[32], &tmpSig[0], 64*sizeof(gr_complex));
+	memcpy(&stfltfl1[96], &tmpSig[0], 64*sizeof(gr_complex));
+	// legaycy ltf with csd -200 for 2nd stream
+	memcpy(tmpSig, C8P_LTF_L_F, 64*sizeof(gr_complex));
+	procCSD(tmpSig, -200);
+	memcpy(ofdmIfft.get_inbuf(), tmpSig + 32, 32*sizeof(gr_complex));
+	memcpy(ofdmIfft.get_inbuf() + 32, tmpSig, 32*sizeof(gr_complex));
+	ofdmIfft.execute();
+	memcpy(tmpSig, ofdmIfft.get_outbuf(), 64*sizeof(gr_complex));
+	memcpy(&stfltfl1[160], &tmpSig[32], 32*sizeof(gr_complex));
+	memcpy(&stfltfl1[192], &tmpSig[0], 64*sizeof(gr_complex));
+	memcpy(&stfltfl1[256], &tmpSig[0], 64*sizeof(gr_complex));
+	// windowing stf and ltf
+	tmpValue = (stfltfl1[159] + stfltfl1[160]) / 2.0f;
+	stfltfl1[159] = tmpValue;
+	stfltfl1[160] = tmpValue;
+
+	// // non legacy stf with csd -400 for 2nd stream
+	// memcpy(tmpSig, C8P_STF_F, 64*sizeof(gr_complex));
+	// procCSD(tmpSig, -400);
+	// memcpy(ofdmIfft.get_inbuf(), tmpSig + 32, 32*sizeof(gr_complex));
+	// memcpy(ofdmIfft.get_inbuf() + 32, tmpSig, 32*sizeof(gr_complex));
+	// ofdmIfft.execute();
+	// memcpy(tmpSig, ofdmIfft.get_outbuf(), sizeof(gr_complex)*64);
+	// memcpy(&stfnl1[16], &tmpSig[0], 64*sizeof(gr_complex));
+	// memcpy(&stfnl1[0], &tmpSig[48], 16*sizeof(gr_complex));
+
+	// // non legacy ltf
+	// memcpy(ofdmIfft.get_inbuf(), C8P_LTF_NL_F + 32, sizeof(gr_complex)*32);
+	// memcpy(ofdmIfft.get_inbuf() + 32, C8P_LTF_NL_F, sizeof(gr_complex)*32);
+	// ofdmIfft.execute();
+	// memcpy(tmpSig, ofdmIfft.get_outbuf(), sizeof(gr_complex)*64);
+	// memcpy(&ltfnl0[0], &tmpSig[48], 16*sizeof(gr_complex));
+	// memcpy(&ltfnl0[16], &tmpSig[0], 64*sizeof(gr_complex));
+
+	// // non legacy ltf negative for ht 2
+	// memcpy(ofdmIfft.get_inbuf(), C8P_LTF_NL_F_N + 32, sizeof(gr_complex)*32);
+	// memcpy(ofdmIfft.get_inbuf() + 32, C8P_LTF_NL_F_N, sizeof(gr_complex)*32);
+	// ofdmIfft.execute();
+	// memcpy(tmpSig, ofdmIfft.get_outbuf(), sizeof(gr_complex)*64);
+	// memcpy(&ltfnl0[80], &tmpSig[48], 16*sizeof(gr_complex));
+	// memcpy(&ltfnl0[96], &tmpSig[0], 64*sizeof(gr_complex));
+
+	// // non legaycy ltf with csd -400 for 2nd stream
+	// memcpy(tmpSig, C8P_LTF_NL_F, 64*sizeof(gr_complex));
+	// procCSD(tmpSig, -400);
+	// memcpy(ofdmIfft.get_inbuf(), tmpSig + 32, sizeof(gr_complex)*32);
+	// memcpy(ofdmIfft.get_inbuf() + 32, tmpSig, sizeof(gr_complex)*32);
+	// ofdmIfft.execute();
+	// memcpy(tmpSig, ofdmIfft.get_outbuf(), sizeof(gr_complex)*64);
+	// memcpy(&ltfnl10[0], &tmpSig[48], 16*sizeof(gr_complex));
+	// memcpy(&ltfnl10[16], &tmpSig[0], 64*sizeof(gr_complex));
+	// memcpy(&ltfnl11ht[0], &tmpSig[0], 64*sizeof(gr_complex));
+
+	// // non legacy ltf, vht ss 2 2nd ltf, due to different pilots polarity
+	// memcpy(tmpSig, C8P_LTF_NL_F_VHT22, 64*sizeof(gr_complex));
+	// procCSD(tmpSig, -400);
+	// memcpy(ofdmIfft.get_inbuf(), tmpSig + 32, sizeof(gr_complex)*32);
+	// memcpy(ofdmIfft.get_inbuf() + 32, tmpSig, sizeof(gr_complex)*32);
+	// ofdmIfft.execute();
+	// memcpy(tmpSig, ofdmIfft.get_outbuf(), sizeof(gr_complex)*64);
+	// memcpy(&ltfnl11vht[0], &tmpSig[48], 16*sizeof(gr_complex));
+	// memcpy(&ltfnl11vht[16], &tmpSig[0], 64*sizeof(gr_complex));
+}
+
+c8p_preamble::~c8p_preamble()
+{
+
+}
+
+void c8p_preamble::genLegacy(c8p_mod *m, gr_complex *sig)
+{
+	memcpy(sig, stfltfl0, sizeof(gr_complex)*320);
+	memset(sigLBits, 0, sizeof(uint8_t) * 24);
+	legacySigBitsGen(sigLBits, sigLBitsCoded, m->mcs, m->len);
+	procIntelLegacyBpsk(sigLBitsCoded, sigLBitsInted);
+	procSigQamMod(sigLBitsInted, ofdmIfft.get_inbuf());
+	ofdmIfft.execute();
+	memcpy(sig+320+16, ofdmIfft.get_outbuf(), sizeof(gr_complex)*64);
+	memcpy(sig+320, ofdmIfft.get_outbuf()+48, sizeof(gr_complex)*16);
+}
+
+void c8p_preamble::genHTSiso(c8p_mod *m, gr_complex *sig)
+{
+
+}
+
+void c8p_preamble::genHTSuMimo(c8p_mod *m, gr_complex *sig0, gr_complex *sig1)
+{
+
+}
+
+void c8p_preamble::genVHTSiso(c8p_mod *m, gr_complex *sig)
+{
+
+}
+
+void c8p_preamble::genVHTSuMimo(c8p_mod *m, gr_complex *sig0, gr_complex *sig1)
+{
+
+}
+
+void c8p_preamble::genVHTMuMimo(c8p_mod *m0, c8p_mod *m1, gr_complex *sig0, gr_complex *sig1, gr_complex)
+{
+	
+}

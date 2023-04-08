@@ -171,7 +171,26 @@ namespace gr {
           std::cout << std::dec;
           d_modcu.cuModPktCopySu(0, d_nPktTotal, d_pkt);
           formatToModSu(&d_m, d_pktFormat, d_pktMcs0, d_pktNss0, d_pktLen0);
-          d_modcu.cuModSu(&d_m, (cuFloatComplex*) d_sig, d_pktVhtSigBCrc);
+          d_pream.genLegacy(&d_m, d_sig);
+          d_modcu.cuModSu(&d_m, (cuFloatComplex*) (&d_sig[400]), d_pktVhtSigBCrc);
+
+          std::cout<<"debugreal = [";
+          for(int i=0;i<(400 + d_m.nSym * 80);i++)
+          {
+            std::cout<<d_sig[i].real()<<", ";
+          }
+          std::cout<<"]";
+          std::cout<<std::endl;
+          std::cout<<std::endl;
+          std::cout<<"debugimag = [";
+          for(int i=0;i<(400 + d_m.nSym * 80);i++)
+          {
+            std::cout<<d_sig[i].imag()<<", ";
+          }
+          std::cout<<"]";
+          std::cout<<std::endl;
+          std::cout<<std::endl;
+
           d_nSampTotal = d_m.nSym * d_m.nSymSamp;
           d_sModcu = MODCU_S_COPY;
         }

@@ -24,6 +24,7 @@
 #include <cstring>
 #include <iostream>
 #include <gnuradio/io_signature.h>
+#include <gnuradio/fft/fft.h>
 #include <math.h>
 
 #define C8P_MAX_N_LTF 4
@@ -128,6 +129,40 @@ class c8p_sigVhtA
         int shortGi;
         int shortGiNsymDis;
         int ldpcExtra;
+};
+
+class c8p_preamble
+{
+    private:
+        gr_complex stfltfl0[320];
+        gr_complex stfltfl1[320];
+        gr_complex stfnl0[80];
+        gr_complex stfnl1[80];
+        gr_complex ltfnl0[160];
+        gr_complex ltfnl10[160];
+        gr_complex ltfnl11ht[80];
+        gr_complex ltfnl11vht[80];
+        uint8_t sigLBits[24];
+        uint8_t sigLBitsCoded[48];
+        uint8_t sigLBitsInted[48];
+        uint8_t sigHTBits[48];
+        uint8_t sigHTBitsCoded[96];
+        uint8_t sigHTBitsInted[96];
+        uint8_t sigVHTABits[48];
+        uint8_t sigVHTABitsCoded[96];
+        uint8_t sigVHTABitsInted[96];
+        gr::fft::fft_complex_rev ofdmIfft;
+    
+    public:
+        c8p_preamble();
+        ~c8p_preamble();
+        void genLegacy(c8p_mod *m, gr_complex *sig);
+        void genHTSiso(c8p_mod *m, gr_complex *sig);
+        void genHTSuMimo(c8p_mod *m, gr_complex *sig0, gr_complex *sig1);
+        void genVHTSiso(c8p_mod *m, gr_complex *sig);
+        void genVHTSuMimo(c8p_mod *m, gr_complex *sig0, gr_complex *sig1);
+        void genVHTMuMimo(c8p_mod *m0, c8p_mod *m1, gr_complex *sig0, gr_complex *sig1, gr_complex);
+        
 };
 
 extern const int C8P_LEGACY_DP_SC[64];

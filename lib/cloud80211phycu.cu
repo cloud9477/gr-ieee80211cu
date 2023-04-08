@@ -1472,7 +1472,7 @@ __global__ void cuQamModSiso(int n, int nbpscs, cuFloatComplex *qammap, int *scm
   }
 }
 
-__global__ void cuGiScale(int n, cuFloatComplex *symfreq, cuFloatComplex *symfreqgi, int nsymsamp)
+__global__ void cuGiScale(int n, cuFloatComplex *symfreq, cuFloatComplex *symfreqgi)
 {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   int j, k;
@@ -1483,21 +1483,10 @@ __global__ void cuGiScale(int n, cuFloatComplex *symfreq, cuFloatComplex *symfre
 
   j = i / 64; // symbol index
   k = i % 64; // sample offset
-  if(nsymsamp == 80)
+  symfreqgi[j * 80 + k + 16] = symfreq[i];
+  if(k >= 48)
   {
-    symfreqgi[j * nsymsamp + k + 16] = symfreq[i];
-    if(k >= 48)
-    {
-      symfreqgi[j * nsymsamp + k - 48] = symfreq[i];
-    }
-  }
-  else  // short gi
-  {
-    symfreqgi[j * nsymsamp + k + 8] = symfreq[i];
-    if(k >= 56)
-    {
-      symfreqgi[j * nsymsamp + k - 56] = symfreq[i];
-    }
+    symfreqgi[j * 80 + k - 48] = symfreq[i];
   }
 }
 
@@ -1738,15 +1727,7 @@ void cloud80211modcu::cuModSu(c8p_mod *m, cuFloatComplex *sig, unsigned char *vh
   {
     // interleaving
     cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutLIdx[m->mod], pktBitsPuncd, pktBitsInted);
-    uint8_t debugBits[65536];
-    cudaMemcpy(debugBits, pktBitsInted, m->nSym * m->nCBPS, cudaMemcpyDeviceToHost);
-    for(int i=0;i<m->nSym * m->nCBPS;i++)
-    {
-      std::cout<<(int)debugBits[i]<<", ";
-    }
-    std::cout<<std::endl;
     // modulation
-    std::cout<<(m->nSym * m->nSD)<<", "<<m->nBPSCS<<std::endl;
     cuQamModSiso<<<(m->nSym * m->nSD + 1023) / 1024, 1024>>>(m->nSym * m->nSD, m->nBPSCS, qamLutIdx[m->mod], qamScMapL, pilotsL, pktBitsInted, pktSymFreq);
   }
   else
@@ -1759,23 +1740,9 @@ void cloud80211modcu::cuModSu(c8p_mod *m, cuFloatComplex *sig, unsigned char *vh
     cufftExecC2C(ifftModPlan, &pktSymFreq[symIter*CUDEMOD_FFT_BATCH*64], &pktSymTime[symIter*CUDEMOD_FFT_BATCH*64], CUFFT_INVERSE);
   }
   // guard interval
-  // cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024>>>(m->nSym * m->nSymSamp, pktSymTime, pktSym, m->nSymSamp);
-  gr_complex debugSamp[65536];
-  cudaMemcpy(debugSamp, pktSymTime, sizeof(cuFloatComplex) * m->nSym * 64, cudaMemcpyDeviceToHost);
-  std::cout<<std::endl;
-  std::cout<<std::endl;
-  for(int i=0;i<m->nSym * 64;i++)
-  {
-    std::cout<<debugSamp[i].real()<<", ";
-  }
-  std::cout<<std::endl;
-  std::cout<<std::endl;
-  for(int i=0;i<m->nSym * 64;i++)
-  {
-    std::cout<<debugSamp[i].imag()<<", ";
-  }
-  std::cout<<std::endl;
-  std::cout<<std::endl;
+  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024>>>(m->nSym * m->nSymSamp, pktSymTime, pktSym);
+  // copy to cpu
+  cudaMemcpy(sig, pktSym, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
 }
 
 cloud80211modcu::cloud80211modcu()
