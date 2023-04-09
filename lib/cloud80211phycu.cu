@@ -1695,7 +1695,46 @@ void cloud80211modcu::cuModPktCopySu(int i, int n, const unsigned char *bytes)
   cudaMemcpy(pktBytes + i, bytes, n*sizeof(unsigned char), cudaMemcpyHostToDevice);
 }
 
-void cloud80211modcu::cuModSu(c8p_mod *m, cuFloatComplex *sig, unsigned char *vhtSigBCrc8Bits)
+void cloud80211modcu::cuModLHTSiso(c8p_mod *m, cuFloatComplex *sig)
+{
+  // 6 bits reserved for bcc init zeros
+  std::cout<<"cu reset"<<std::endl;
+  cudaMemset(pktBits, 0, sizeof(unsigned char) * (m->nSym * m->nDBPS + 6));
+
+  std::cout<<"cu legacy or ht"<<std::endl;
+  // psdu without padding octets or bits
+  cuCodeB2B<<<(m->len + 1023) / 1024, 1024>>>(m->len, pktBytes, pktBits + 16 + 6);
+  // scramble all data bits
+  cuCodeScramble<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, pktBits + 6, scrambler, scramSeq);
+  // reset the 6 bits for bcc
+  cudaMemset(pktBits + 6 + 16 + m->len * 8, 0, sizeof(unsigned char) * 6);
+  // coding
+  cuCodeBcc<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, pktBits, pktBitsCoded);
+  // puncturing
+  cuCodePunc<<<(m->nSym * m->nCBPS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPS, m->cr, pktBitsCoded, pktBitsPuncd);
+  if(m->format == C8P_F_L)
+  {
+    // interleaving
+    cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutLIdx[m->mod], pktBitsPuncd, pktBitsInted);
+    // modulation
+    cuQamModSiso<<<(m->nSym * m->nSD + 1023) / 1024, 1024>>>(m->nSym * m->nSD, m->nBPSCS, qamLutIdx[m->mod], qamScMapL, pilotsL, pktBitsInted, pktSymFreq);
+  }
+  else
+  {
+    cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutNLIdx[m->mod], pktBitsPuncd, pktBitsInted);
+  }
+  // ifft
+  for(int symIter=0; symIter < ((m->nSym + CUDEMOD_FFT_BATCH - 1) / CUDEMOD_FFT_BATCH); symIter++ )
+  {
+    cufftExecC2C(ifftModPlan, &pktSymFreq[symIter*CUDEMOD_FFT_BATCH*64], &pktSymTime[symIter*CUDEMOD_FFT_BATCH*64], CUFFT_INVERSE);
+  }
+  // guard interval
+  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024>>>(m->nSym * m->nSymSamp, pktSymTime, pktSym);
+  // copy to cpu
+  cudaMemcpy(sig, pktSym, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
+}
+
+void cloud80211modcu::cuModVHTSiso(c8p_mod *m, cuFloatComplex *sig, unsigned char *vhtSigBCrc8Bits)
 {
   // 6 bits reserved for bcc init zeros
   std::cout<<"cu reset"<<std::endl;

@@ -151,6 +151,9 @@ class c8p_preamble
         uint8_t sigVHTABits[48];
         uint8_t sigVHTABitsCoded[96];
         uint8_t sigVHTABitsInted[96];
+        uint8_t sigVHTBBits[26];
+        uint8_t sigVHTBBitsCoded[52];
+        uint8_t sigVHTBBitsInted[52];
         gr::fft::fft_complex_rev ofdmIfft;
     
     public:
@@ -159,9 +162,9 @@ class c8p_preamble
         void genLegacy(c8p_mod *m, gr_complex *sig);
         void genHTSiso(c8p_mod *m, gr_complex *sig);
         void genHTSuMimo(c8p_mod *m, gr_complex *sig0, gr_complex *sig1);
-        void genVHTSiso(c8p_mod *m, gr_complex *sig);
-        void genVHTSuMimo(c8p_mod *m, gr_complex *sig0, gr_complex *sig1);
-        void genVHTMuMimo(c8p_mod *m0, c8p_mod *m1, gr_complex *sig0, gr_complex *sig1, gr_complex);
+        void genVHTSiso(c8p_mod *m, gr_complex *sig, uint8_t *vhtsigbcrc8);
+        void genVHTSuMimo(c8p_mod *m, gr_complex *sig0, gr_complex *sig1, uint8_t *vhtsigbcrc8);
+        void genVHTMuMimo(c8p_mod *m0, c8p_mod *m1, gr_complex *sig0, gr_complex *sig1, uint8_t *vhtsigb0crc8, uint8_t *vhtsigb1crc8);
         
 };
 

@@ -161,35 +161,60 @@ namespace gr {
         else
         {
           // SU
-          std::cout<<"single user packet payload:"<<std::endl;
-          std::cout << std::hex;
-          for(int i=0;i<d_pktLen0;i++)
-          {
-            std::cout<< (int)d_pkt[i] << " ";
-          }
-          std::cout<<std::endl;
-          std::cout << std::dec;
+          // std::cout<<"single user packet payload:"<<std::endl;
+          // std::cout << std::hex;
+          // for(int i=0;i<d_pktLen0;i++)
+          // {
+          //   std::cout<< (int)d_pkt[i] << " ";
+          // }
+          // std::cout<<std::endl;
+          // std::cout << std::dec;
           d_modcu.cuModPktCopySu(0, d_nPktTotal, d_pkt);
           formatToModSu(&d_m, d_pktFormat, d_pktMcs0, d_pktNss0, d_pktLen0);
-          d_pream.genLegacy(&d_m, d_sig);
-          d_modcu.cuModSu(&d_m, (cuFloatComplex*) (&d_sig[400]), d_pktVhtSigBCrc);
+          if(d_m.format == C8P_F_L)
+          {
+            d_pream.genLegacy(&d_m, d_sig);
+            d_modcu.cuModLHTSiso(&d_m, (cuFloatComplex*) (d_sig + 400));
+          }
+          else if(d_m.nSS == 1)
+          {
+            if(d_m.format == C8P_F_HT)
+            {
 
-          std::cout<<"debugreal = [";
-          for(int i=0;i<(400 + d_m.nSym * 80);i++)
-          {
-            std::cout<<d_sig[i].real()<<", ";
+            }
+            else
+            {
+
+            }
           }
-          std::cout<<"]";
-          std::cout<<std::endl;
-          std::cout<<std::endl;
-          std::cout<<"debugimag = [";
-          for(int i=0;i<(400 + d_m.nSym * 80);i++)
+          else
           {
-            std::cout<<d_sig[i].imag()<<", ";
+            if(d_m.format == C8P_F_HT)
+            {
+
+            }
+            else
+            {
+              
+            }
           }
-          std::cout<<"]";
-          std::cout<<std::endl;
-          std::cout<<std::endl;
+
+          // std::cout<<"debugreal = [";
+          // for(int i=0;i<(400 + d_m.nSym * 80);i++)
+          // {
+          //   std::cout<<d_sig[i].real()<<", ";
+          // }
+          // std::cout<<"]";
+          // std::cout<<std::endl;
+          // std::cout<<std::endl;
+          // std::cout<<"debugimag = [";
+          // for(int i=0;i<(400 + d_m.nSym * 80);i++)
+          // {
+          //   std::cout<<d_sig[i].imag()<<", ";
+          // }
+          // std::cout<<"]";
+          // std::cout<<std::endl;
+          // std::cout<<std::endl;
 
           d_nSampTotal = d_m.nSym * d_m.nSymSamp;
           d_sModcu = MODCU_S_COPY;

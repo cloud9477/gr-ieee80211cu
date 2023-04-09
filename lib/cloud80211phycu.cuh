@@ -89,7 +89,11 @@ class cloud80211modcu
 
   public:
     void cuModPktCopySu(int i, int n, const unsigned char *bytes);
-    void cuModSu(c8p_mod *m, cuFloatComplex *sig, unsigned char *vhtSigBCrc8Bits);
+    void cuModLHTSiso(c8p_mod *m, cuFloatComplex *sig);
+    void cuModVHTSiso(c8p_mod *m, cuFloatComplex *sig, unsigned char *vhtSigBCrc8Bits);
+    void cuModHTMimo(c8p_mod *m, cuFloatComplex *sig);
+    void cuModVHTSuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1, unsigned char *vhtSigBCrc8Bits);
+    void cuModVHTMuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1, unsigned char *vhtSigBCrc8Bits);
     cloud80211modcu();
     ~cloud80211modcu();
 };
