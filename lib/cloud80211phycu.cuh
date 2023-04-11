@@ -74,12 +74,15 @@ class cloud80211modcu
     cuFloatComplex *pilotsVHT;
     cuFloatComplex *pilotsVHT2;
     cufftHandle ifftModPlan;
-    // input
+    cudaStream_t modStream0;
+    cudaStream_t modStream1;
+    // packet
     unsigned char *pktBytes;
     unsigned char *pktBits;
     unsigned char *pktBitsCoded;
     unsigned char *pktBitsPuncd;
     unsigned char *pktBitsInted;
+    unsigned char *pktBitsStream;
     cuFloatComplex *pktSymFreq;
     cuFloatComplex *pktSymTime;
     cuFloatComplex *pktSym;
@@ -90,10 +93,10 @@ class cloud80211modcu
   public:
     void cuModPktCopySu(int i, int n, const unsigned char *bytes);
     void cuModLHTSiso(c8p_mod *m, cuFloatComplex *sig);
+    void cuModHTMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1);
     void cuModVHTSiso(c8p_mod *m, cuFloatComplex *sig, unsigned char *vhtSigBCrc8Bits);
-    void cuModHTMimo(c8p_mod *m, cuFloatComplex *sig);
     void cuModVHTSuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1, unsigned char *vhtSigBCrc8Bits);
-    void cuModVHTMuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1, unsigned char *vhtSigBCrc8Bits);
+    void cuModVHTMuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1, unsigned char *vhtSigB0Crc8Bits, unsigned char *vhtSigB1Crc8Bits);
     cloud80211modcu();
     ~cloud80211modcu();
 };

@@ -2590,6 +2590,22 @@ void procNss2SymBfQ(gr_complex* sig0, gr_complex* sig1, gr_complex* bfQ)
 	}
 }
 
+void procWindowing(gr_complex *sig, int n)
+{
+	// windowing symbols except l-stf and l-ltf
+	gr_complex tmp;
+	int indexa = 319;
+	int indexb = 320;
+	for(int i=0;i<n;i++)
+	{
+		tmp = (sig[indexa] + sig[indexb]) / 2.0f;
+		sig[indexa] = tmp;
+		sig[indexb] = tmp;
+		indexa += 80;
+		indexb += 80;
+	}
+}
+
 void legacySigBitsGen(uint8_t* sigbits, uint8_t* sigbitscoded, int mcs, int len)
 {
 	int p = 0;

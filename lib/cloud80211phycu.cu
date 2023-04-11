@@ -1418,7 +1418,27 @@ __global__ void cuCodePunc(int n, int cr, unsigned char *codedbits, unsigned cha
   }
 }
 
-__global__ void cuCodeInterleave(int n, int ncbps, int *intmap, unsigned char *puncdbits, unsigned char *intedbits)
+__global__ void cuCodeStreamParser(int n, int s, unsigned char *puncdbits, unsigned char *streambits0, unsigned char *streambits1)
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j, k;
+  if(i >= n)
+  {
+    return;
+  }
+  j = i / (2 * s);
+  k = i % s;
+  if((j%2) == 0)
+  {
+    streambits0[j*s+k] = puncdbits[i];
+  }
+  else
+  {
+    streambits1[j*s+k] = puncdbits[i];
+  }
+}
+
+__global__ void cuCodeInterleave(int n, int ncbps, int *intmap, unsigned char *streambits, unsigned char *intedbits)
 {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   int j, k;
@@ -1428,10 +1448,10 @@ __global__ void cuCodeInterleave(int n, int ncbps, int *intmap, unsigned char *p
   }
   j = i / ncbps;
   k = i % ncbps;
-  intedbits[j * ncbps + intmap[k]] = puncdbits[i];
+  intedbits[j * ncbps + intmap[k]] = streambits[i];
 }
 
-__global__ void cuQamModSiso(int n, int nbpscs, cuFloatComplex *qammap, int *scmap, cuFloatComplex *pilots, unsigned char *intedbits, cuFloatComplex *symfreq)
+__global__ void cuQamModStream(int n, int nsd, int nbpscs, cuFloatComplex *qammap, int *scmap, cuFloatComplex *pilots, unsigned char *intedbits, cuFloatComplex *symfreq)
 {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   int j, k;
@@ -1440,8 +1460,8 @@ __global__ void cuQamModSiso(int n, int nbpscs, cuFloatComplex *qammap, int *scm
   {
     return;
   }
-  j = i / 48;
-  k = i % 48;
+  j = i / nsd;
+  k = i % nsd;
 
   qamIndex = 0;
   for(int p=0;p<nbpscs;p++)
@@ -1547,6 +1567,10 @@ void cloud80211modcu::cuModMall()
 
   cufftResult errfft = cufftPlan1d(&ifftModPlan, 64, CUFFT_C2C, CUDEMOD_FFT_BATCH);
   if(errfft){ std::cout<<"cloud80211modcu, ifftModPlan plan creation failed"<<std::endl;}
+  err = cudaStreamCreate(&modStream0);
+  if(err){ std::cout<<"cloud80211modcu, create cudaStream0 error."<<std::endl; initSuccess = false; return;}
+  err = cudaStreamCreate(&modStream1);
+  if(err){ std::cout<<"cloud80211modcu, create cudaStream1 error."<<std::endl; initSuccess = false; return;}
 
   err = cudaMalloc(&pilotsL, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 4);
   if(err){ std::cout<<"cloud80211modcu, malloc pilotsL error."<<std::endl; initSuccess = false; return;}
@@ -1657,6 +1681,8 @@ void cloud80211modcu::cuModMall()
   if(err){ std::cout<<"cloud80211modcu, malloc pktBitsPuncd error."<<std::endl; initSuccess = false; return;}
   err = cudaMalloc(&pktBitsInted, sizeof(unsigned char) * CUDEMOD_L_MAX);
   if(err){ std::cout<<"cloud80211modcu, malloc pktBitsInted error."<<std::endl; initSuccess = false; return;}
+  err = cudaMalloc(&pktBitsStream, sizeof(unsigned char) * CUDEMOD_L_MAX);
+  if(err){ std::cout<<"cloud80211modcu, malloc pktBitsStream0 error."<<std::endl; initSuccess = false; return;}
   err = cudaMalloc(&pktSymFreq, sizeof(cuFloatComplex) * CUDEMOD_L_MAX);
   if(err){ std::cout<<"cloud80211modcu, malloc pktSymFreq error."<<std::endl; initSuccess = false; return;}
   err = cudaMalloc(&pktSymTime, sizeof(cuFloatComplex) * CUDEMOD_L_MAX);
@@ -1679,12 +1705,15 @@ void cloud80211modcu::cuModFree()
   cudaFree(pilotsVHT);
   cudaFree(pilotsVHT2);
   cufftDestroy(ifftModPlan);
+  cudaStreamDestroy(modStream0);
+  cudaStreamDestroy(modStream1);
 
   cudaFree(pktBytes);
   cudaFree(pktBits);
   cudaFree(pktBitsCoded);
   cudaFree(pktBitsPuncd);
   cudaFree(pktBitsInted);
+  cudaFree(pktBitsStream);
   cudaFree(pktSymFreq);
   cudaFree(pktSymTime);
   cudaFree(pktSym);
@@ -1698,10 +1727,7 @@ void cloud80211modcu::cuModPktCopySu(int i, int n, const unsigned char *bytes)
 void cloud80211modcu::cuModLHTSiso(c8p_mod *m, cuFloatComplex *sig)
 {
   // 6 bits reserved for bcc init zeros
-  std::cout<<"cu reset"<<std::endl;
   cudaMemset(pktBits, 0, sizeof(unsigned char) * (m->nSym * m->nDBPS + 6));
-
-  std::cout<<"cu legacy or ht"<<std::endl;
   // psdu without padding octets or bits
   cuCodeB2B<<<(m->len + 1023) / 1024, 1024>>>(m->len, pktBytes, pktBits + 16 + 6);
   // scramble all data bits
@@ -1711,17 +1737,20 @@ void cloud80211modcu::cuModLHTSiso(c8p_mod *m, cuFloatComplex *sig)
   // coding
   cuCodeBcc<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, pktBits, pktBitsCoded);
   // puncturing
-  cuCodePunc<<<(m->nSym * m->nCBPS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPS, m->cr, pktBitsCoded, pktBitsPuncd);
+  cuCodePunc<<<(m->nSym * m->nDBPS * 2 + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS * 2, m->cr, pktBitsCoded, pktBitsPuncd);
   if(m->format == C8P_F_L)
   {
     // interleaving
     cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutLIdx[m->mod], pktBitsPuncd, pktBitsInted);
     // modulation
-    cuQamModSiso<<<(m->nSym * m->nSD + 1023) / 1024, 1024>>>(m->nSym * m->nSD, m->nBPSCS, qamLutIdx[m->mod], qamScMapL, pilotsL, pktBitsInted, pktSymFreq);
+    cuQamModStream<<<(m->nSym * m->nSD + 1023) / 1024, 1024>>>(m->nSym * m->nSD, 48, m->nBPSCS, qamLutIdx[m->mod], qamScMapL, pilotsL, pktBitsInted, pktSymFreq);
   }
   else
   {
+    // interleaving
     cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutNLIdx[m->mod], pktBitsPuncd, pktBitsInted);
+    // modulation
+    cuQamModStream<<<(m->nSym * m->nSD + 1023) / 1024, 1024>>>(m->nSym * m->nSD, 52, m->nBPSCS, qamLutIdx[m->mod], qamScMapNL, pilotsHT, pktBitsInted, pktSymFreq);
   }
   // ifft
   for(int symIter=0; symIter < ((m->nSym + CUDEMOD_FFT_BATCH - 1) / CUDEMOD_FFT_BATCH); symIter++ )
@@ -1734,45 +1763,49 @@ void cloud80211modcu::cuModLHTSiso(c8p_mod *m, cuFloatComplex *sig)
   cudaMemcpy(sig, pktSym, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
 }
 
+void cloud80211modcu::cuModHTMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1)
+{
+  cudaMemset(pktBits, 0, sizeof(unsigned char) * (m->nSym * m->nDBPS + 6));
+  cuCodeB2B<<<(m->len + 1023) / 1024, 1024>>>(m->len, pktBytes, pktBits + 16 + 6);
+  cuCodeScramble<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, pktBits + 6, scrambler, scramSeq);
+  cudaMemset(pktBits + 6 + 16 + m->len * 8, 0, sizeof(unsigned char) * 6);
+  cuCodeBcc<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, pktBits, pktBitsCoded);
+  cuCodePunc<<<(m->nSym * m->nDBPS * 2 + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS * 2, m->cr, pktBitsCoded, pktBitsPuncd);
+  cuCodeStreamParser<<<(m->nSym * m->nCBPS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPS, std::max(m->nBPSCS/2, 1), pktBitsPuncd, pktBitsStream, pktBitsStream + m->nSym * m->nCBPSS);
+  cuQamModStream<<<(m->nSym * m->nSD + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nSD, 52, m->nBPSCS, qamLutIdx[m->mod], qamScMapNL, pilotsHT, pktBitsStream, pktSymFreq);
+  cuQamModStream<<<(m->nSym * m->nSD + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nSD, 52, m->nBPSCS, qamLutIdx[m->mod], qamScMapNL, pilotsHT2, pktBitsStream + m->nSym * m->nCBPSS, pktSymFreq + m->nSym*64);
+  cudaStreamSynchronize(modStream0);
+  cudaStreamSynchronize(modStream1);
+  for(int symIter=0; symIter < ((m->nSym * 2 + CUDEMOD_FFT_BATCH - 1) / CUDEMOD_FFT_BATCH); symIter++ )
+  {
+    cufftExecC2C(ifftModPlan, &pktSymFreq[symIter*CUDEMOD_FFT_BATCH*64], &pktSymTime[symIter*CUDEMOD_FFT_BATCH*64], CUFFT_INVERSE);
+  }
+  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nSymSamp, pktSymTime, pktSym);
+  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nSymSamp, pktSymTime + m->nSym*64, pktSym + m->nSym*80);
+  cudaStreamSynchronize(modStream0);
+  cudaStreamSynchronize(modStream1);
+  cudaMemcpy(sig0, pktSym, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
+  cudaMemcpy(sig1, pktSym + m->nSym*80, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
+}
+
 void cloud80211modcu::cuModVHTSiso(c8p_mod *m, cuFloatComplex *sig, unsigned char *vhtSigBCrc8Bits)
 {
   // 6 bits reserved for bcc init zeros
-  std::cout<<"cu reset"<<std::endl;
   cudaMemset(pktBits, 0, sizeof(unsigned char) * (m->nSym * m->nDBPS + 6));
-  if(m->format == C8P_F_VHT)
-  {
-    // vht service
-    cudaMemcpy(pktBits + 8 + 6, vhtSigBCrc8Bits, 8*sizeof(unsigned char), cudaMemcpyHostToDevice);
-    // psdu without padding octets or bits
-    cuCodeB2B<<<(m->len + 1023) / 1024, 1024>>>(m->len, pktBytes, pktBits + 16 + 6);
-    // scramble all data bits except tail 6 bits for bcc
-    cuCodeScramble<<<(m->nSym * m->nDBPS - 6 + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS - 6, pktBits + 6, scrambler, scramSeq);
-  }
-  else
-  {
-    std::cout<<"cu legacy or ht"<<std::endl;
-    // psdu without padding octets or bits
-    cuCodeB2B<<<(m->len + 1023) / 1024, 1024>>>(m->len, pktBytes, pktBits + 16 + 6);
-    // scramble all data bits
-    cuCodeScramble<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, pktBits + 6, scrambler, scramSeq);
-    // reset the 6 bits for bcc
-    cudaMemset(pktBits + 6 + 16 + m->len * 8, 0, sizeof(unsigned char) * 6);
-  }
+  // vht service
+  cudaMemcpy(pktBits + 8 + 6, vhtSigBCrc8Bits, 8*sizeof(unsigned char), cudaMemcpyHostToDevice);
+  // psdu without padding octets or bits
+  cuCodeB2B<<<(m->len + 1023) / 1024, 1024>>>(m->len, pktBytes, pktBits + 16 + 6);
+  // scramble all data bits except tail 6 bits for bcc
+  cuCodeScramble<<<(m->nSym * m->nDBPS - 6 + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS - 6, pktBits + 6, scrambler, scramSeq);
   // coding
   cuCodeBcc<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, pktBits, pktBitsCoded);
   // puncturing
   cuCodePunc<<<(m->nSym * m->nCBPS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPS, m->cr, pktBitsCoded, pktBitsPuncd);
-  if(m->format == C8P_F_L)
-  {
-    // interleaving
-    cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutLIdx[m->mod], pktBitsPuncd, pktBitsInted);
-    // modulation
-    cuQamModSiso<<<(m->nSym * m->nSD + 1023) / 1024, 1024>>>(m->nSym * m->nSD, m->nBPSCS, qamLutIdx[m->mod], qamScMapL, pilotsL, pktBitsInted, pktSymFreq);
-  }
-  else
-  {
-    cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutNLIdx[m->mod], pktBitsPuncd, pktBitsInted);
-  }
+  // interleaving
+  cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutNLIdx[m->mod], pktBitsPuncd, pktBitsInted);
+  // modulation
+  cuQamModStream<<<(m->nSym * m->nSD + 1023) / 1024, 1024>>>(m->nSym * m->nSD, 52, m->nBPSCS, qamLutIdx[m->mod], qamScMapNL, pilotsVHT, pktBitsInted, pktSymFreq);
   // ifft
   for(int symIter=0; symIter < ((m->nSym + CUDEMOD_FFT_BATCH - 1) / CUDEMOD_FFT_BATCH); symIter++ )
   {
@@ -1782,6 +1815,36 @@ void cloud80211modcu::cuModVHTSiso(c8p_mod *m, cuFloatComplex *sig, unsigned cha
   cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024>>>(m->nSym * m->nSymSamp, pktSymTime, pktSym);
   // copy to cpu
   cudaMemcpy(sig, pktSym, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
+}
+
+void cloud80211modcu::cuModVHTSuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1, unsigned char *vhtSigBCrc8Bits)
+{
+  cudaMemset(pktBits, 0, sizeof(unsigned char) * (m->nSym * m->nDBPS + 6));
+  cudaMemcpy(pktBits + 8 + 6, vhtSigBCrc8Bits, 8*sizeof(unsigned char), cudaMemcpyHostToDevice);
+  cuCodeB2B<<<(m->len + 1023) / 1024, 1024>>>(m->len, pktBytes, pktBits + 16 + 6);
+  cuCodeScramble<<<(m->nSym * m->nDBPS - 6 + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS - 6, pktBits + 6, scrambler, scramSeq);
+  cuCodeBcc<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, pktBits, pktBitsCoded);
+  cuCodePunc<<<(m->nSym * m->nCBPS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPS, m->cr, pktBitsCoded, pktBitsPuncd);
+  cuCodeStreamParser<<<(m->nSym * m->nCBPS + 1023) / 1024, 1024>>>(m->nSym * m->nCBPS, std::max(m->nBPSCS/2, 1), pktBitsPuncd, pktBitsStream, pktBitsStream + m->nSym * m->nCBPSS);
+  cuQamModStream<<<(m->nSym * m->nSD + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nSD, 52, m->nBPSCS, qamLutIdx[m->mod], qamScMapNL, pilotsHT, pktBitsStream, pktSymFreq);
+  cuQamModStream<<<(m->nSym * m->nSD + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nSD, 52, m->nBPSCS, qamLutIdx[m->mod], qamScMapNL, pilotsHT2, pktBitsStream + m->nSym * m->nCBPSS, pktSymFreq + m->nSym*64);
+  cudaStreamSynchronize(modStream0);
+  cudaStreamSynchronize(modStream1);
+  for(int symIter=0; symIter < ((m->nSym * 2 + CUDEMOD_FFT_BATCH - 1) / CUDEMOD_FFT_BATCH); symIter++ )
+  {
+    cufftExecC2C(ifftModPlan, &pktSymFreq[symIter*CUDEMOD_FFT_BATCH*64], &pktSymTime[symIter*CUDEMOD_FFT_BATCH*64], CUFFT_INVERSE);
+  }
+  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nSymSamp, pktSymTime, pktSym);
+  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nSymSamp, pktSymTime + m->nSym*64, pktSym + m->nSym*80);
+  cudaStreamSynchronize(modStream0);
+  cudaStreamSynchronize(modStream1);
+  cudaMemcpy(sig0, pktSym, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
+  cudaMemcpy(sig1, pktSym + m->nSym*80, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
+}
+
+void cloud80211modcu::cuModVHTMuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1, unsigned char *vhtSigB0Crc8Bits, unsigned char *vhtSigB1Crc8Bits)
+{
+
 }
 
 cloud80211modcu::cloud80211modcu()

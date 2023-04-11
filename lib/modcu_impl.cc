@@ -43,7 +43,8 @@ namespace gr {
       d_sModcu = MODCU_S_RDTAG;
       memset(d_pktVhtSigBCrc, 0, 8);
       memset(d_pkt, 0, CUDEMOD_B_MAX);
-      memset((uint8_t*) d_sig, 0, sizeof(gr_complex) * CUDEMOD_S_MAX * 80);
+      memset((uint8_t*) d_sig0, 0, sizeof(gr_complex) * CUDEMOD_S_MAX * 80);
+      memset((uint8_t*) d_sig1, 0, sizeof(gr_complex) * CUDEMOD_S_MAX * 80);
 
       d_nSampTotal = 0;
       d_nSampCopied = 0;
@@ -173,25 +174,31 @@ namespace gr {
           formatToModSu(&d_m, d_pktFormat, d_pktMcs0, d_pktNss0, d_pktLen0);
           if(d_m.format == C8P_F_L)
           {
-            d_pream.genLegacy(&d_m, d_sig);
-            d_modcu.cuModLHTSiso(&d_m, (cuFloatComplex*) (d_sig + 400));
+            d_pream.genLegacy(&d_m, d_sig0);
+            d_modcu.cuModLHTSiso(&d_m, (cuFloatComplex*) (d_sig0 + 400));
+            procWindowing(d_sig0, d_m.nSym + 1);
           }
           else if(d_m.nSS == 1)
           {
             if(d_m.format == C8P_F_HT)
             {
-
+              d_pream.genHTSiso(&d_m, d_sig0);
+              d_modcu.cuModLHTSiso(&d_m, (cuFloatComplex*) (d_sig0 + 640 + 80*d_m.nLTF));
+              procWindowing(d_sig0, d_m.nSym + 4 + d_m.nLTF);
             }
             else
             {
-
+              d_pream.genVHTSiso(&d_m, d_sig0, d_pktVhtSigBCrc);
             }
           }
           else
           {
             if(d_m.format == C8P_F_HT)
             {
-
+              d_pream.genHTSuMimo(&d_m, d_sig0, d_sig1);
+              d_modcu.cuModHTMimo(&d_m, (cuFloatComplex*) (d_sig0 + 640 + 80*d_m.nLTF), (cuFloatComplex*) (d_sig1 + 640 + 80*d_m.nLTF));
+              procWindowing(d_sig0, d_m.nSym + 4 + d_m.nLTF);
+              procWindowing(d_sig1, d_m.nSym + 4 + d_m.nLTF);
             }
             else
             {
