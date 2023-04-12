@@ -55,6 +55,10 @@
 #define C8P_QAM_64QAM 4
 #define C8P_QAM_256QAM 5
 
+#define C8P_SCALENTF_STF 12.0f
+#define C8P_SCALENTF_L 52.0f
+#define C8P_SCALENTF_NL 56.0f
+
 class c8p_mod
 {
     public:

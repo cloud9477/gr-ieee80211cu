@@ -1492,22 +1492,40 @@ __global__ void cuQamModStream(int n, int nsd, int nbpscs, cuFloatComplex *qamma
   }
 }
 
-__global__ void cuGiScale(int n, cuFloatComplex *symfreq, cuFloatComplex *symfreqgi)
+__global__ void cuGiScale(int n, float sf, cuFloatComplex *symfreq, cuFloatComplex *symfreqgi)
 {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
-  int j, k;
+  int j, q, k;
   if(i >= n)
   {
     return;
   }
 
-  j = i / 64; // symbol index
-  k = i % 64; // sample offset
-  symfreqgi[j * 80 + k + 16] = symfreq[i];
-  if(k >= 48)
+  k = i % 80; // sample offset
+  j = i - k;
+  q = (i / 80) * 64;
+  
+  if(k >= 16)
   {
-    symfreqgi[j * 80 + k - 48] = symfreq[i];
+    symfreqgi[j + k] = make_cuFloatComplex(cuCrealf(symfreq[q+k-16]) * sf, cuCimagf(symfreq[q+k-16]) * sf);
   }
+  else
+  {
+    symfreqgi[j + k] = make_cuFloatComplex(cuCrealf(symfreq[q+k+48]) * sf, cuCimagf(symfreq[q+k+48]) * sf);
+  }
+}
+
+void cuDebugBits(unsigned char *bits, int n)
+{
+  uint8_t debugbits[65536];
+  cudaMemcpy(debugbits, bits, sizeof(uint8_t) * n, cudaMemcpyDeviceToHost);
+  std::cout<<"debug bits:"<<std::endl;
+  for(int i=0;i<n;i++)
+  {
+    std::cout << (int) debugbits[i] << ", ";
+  }
+  std::cout<<std::endl;
+  std::cout<<std::endl;
 }
 
 void cloud80211modcu::cuModMall()
@@ -1738,6 +1756,7 @@ void cloud80211modcu::cuModLHTSiso(c8p_mod *m, cuFloatComplex *sig)
   cuCodeBcc<<<(m->nSym * m->nDBPS + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS, pktBits, pktBitsCoded);
   // puncturing
   cuCodePunc<<<(m->nSym * m->nDBPS * 2 + 1023) / 1024, 1024>>>(m->nSym * m->nDBPS * 2, m->cr, pktBitsCoded, pktBitsPuncd);
+  cuDebugBits(pktBitsPuncd, m->nSym * m->nCBPS);
   if(m->format == C8P_F_L)
   {
     // interleaving
@@ -1758,7 +1777,14 @@ void cloud80211modcu::cuModLHTSiso(c8p_mod *m, cuFloatComplex *sig)
     cufftExecC2C(ifftModPlan, &pktSymFreq[symIter*CUDEMOD_FFT_BATCH*64], &pktSymTime[symIter*CUDEMOD_FFT_BATCH*64], CUFFT_INVERSE);
   }
   // guard interval
-  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024>>>(m->nSym * m->nSymSamp, pktSymTime, pktSym);
+  if(m->format == C8P_F_L)
+  {
+    cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024>>>(m->nSym * m->nSymSamp, scaleFactorL, pktSymTime, pktSym);
+  }
+  else
+  {
+    cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024>>>(m->nSym * m->nSymSamp, scaleFactorNL, pktSymTime, pktSym);
+  }
   // copy to cpu
   cudaMemcpy(sig, pktSym, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
 }
@@ -1780,8 +1806,8 @@ void cloud80211modcu::cuModHTMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatCompl
   {
     cufftExecC2C(ifftModPlan, &pktSymFreq[symIter*CUDEMOD_FFT_BATCH*64], &pktSymTime[symIter*CUDEMOD_FFT_BATCH*64], CUFFT_INVERSE);
   }
-  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nSymSamp, pktSymTime, pktSym);
-  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nSymSamp, pktSymTime + m->nSym*64, pktSym + m->nSym*80);
+  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nSymSamp, scaleFactorNL, pktSymTime, pktSym);
+  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nSymSamp, scaleFactorNL, pktSymTime + m->nSym*64, pktSym + m->nSym*80);
   cudaStreamSynchronize(modStream0);
   cudaStreamSynchronize(modStream1);
   cudaMemcpy(sig0, pktSym, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
@@ -1812,7 +1838,7 @@ void cloud80211modcu::cuModVHTSiso(c8p_mod *m, cuFloatComplex *sig, unsigned cha
     cufftExecC2C(ifftModPlan, &pktSymFreq[symIter*CUDEMOD_FFT_BATCH*64], &pktSymTime[symIter*CUDEMOD_FFT_BATCH*64], CUFFT_INVERSE);
   }
   // guard interval
-  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024>>>(m->nSym * m->nSymSamp, pktSymTime, pktSym);
+  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024>>>(m->nSym * m->nSymSamp, scaleFactorNL, pktSymTime, pktSym);
   // copy to cpu
   cudaMemcpy(sig, pktSym, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
 }
@@ -1834,8 +1860,8 @@ void cloud80211modcu::cuModVHTSuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatCo
   {
     cufftExecC2C(ifftModPlan, &pktSymFreq[symIter*CUDEMOD_FFT_BATCH*64], &pktSymTime[symIter*CUDEMOD_FFT_BATCH*64], CUFFT_INVERSE);
   }
-  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nSymSamp, pktSymTime, pktSym);
-  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nSymSamp, pktSymTime + m->nSym*64, pktSym + m->nSym*80);
+  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nSymSamp, scaleFactorNL, pktSymTime, pktSym);
+  cuGiScale<<<(m->nSym * m->nSymSamp + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nSymSamp, scaleFactorNL, pktSymTime + m->nSym*64, pktSym + m->nSym*80);
   cudaStreamSynchronize(modStream0);
   cudaStreamSynchronize(modStream1);
   cudaMemcpy(sig0, pktSym, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
@@ -1851,6 +1877,8 @@ cloud80211modcu::cloud80211modcu()
 {
   initSuccess = true;
   scrambler = 93;
+  scaleFactorL = 1.0f / sqrtf(C8P_SCALENTF_L) / 3.55555f;
+	scaleFactorNL = 1.0f / sqrtf(C8P_SCALENTF_NL) / 3.55555f;
   cuModMall();
 }
 

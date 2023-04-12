@@ -56,6 +56,8 @@ void cuDemodMimo(c8p_mod* m, unsigned char* psduBytes);
 class cloud80211modcu
 {
   private:
+    float scaleFactorL;
+    float scaleFactorNL;
     bool initSuccess;
     int scrambler;
     // constants

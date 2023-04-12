@@ -2826,7 +2826,7 @@ void htSigBitsGen(uint8_t* sigbits, uint8_t* sigbitscoded, c8p_mod* mod)
 
 void procSigQamMod(uint8_t *intedbits, gr_complex *sig)
 {
-	memset(sig, 0, sizeof(gr_complex) * 64);
+	memset((uint8_t*) sig, 0, sizeof(gr_complex) * 64);
 	for(int i=0; i<48;i++)
 	{
 		sig[QAM_TO_SC_MAP_L[i]] = C8P_QAM_TAB_BPSK[intedbits[i]];
@@ -2839,7 +2839,7 @@ void procSigQamMod(uint8_t *intedbits, gr_complex *sig)
 
 void procSigQamQMod(uint8_t *intedbits, gr_complex *sig)
 {
-	memset(sig, 0, sizeof(gr_complex) * 64);
+	memset((uint8_t*) sig, 0, sizeof(gr_complex) * 64);
 	for(int i=0; i<48;i++)
 	{
 		sig[QAM_TO_SC_MAP_L[i]] = C8P_QAM_TAB_QBPSK[intedbits[i]];
@@ -2852,7 +2852,7 @@ void procSigQamQMod(uint8_t *intedbits, gr_complex *sig)
 
 void procSigVhtBQamMod(uint8_t *intedbits, gr_complex *sig)
 {
-	memset(sig, 0, sizeof(gr_complex) * 64);
+	memset((uint8_t*) sig, 0, sizeof(gr_complex) * 64);
 	for(int i=0; i<52;i++)
 	{
 		sig[QAM_TO_SC_MAP_NL[i]] = C8P_QAM_TAB_BPSK[intedbits[i]];
@@ -2861,6 +2861,15 @@ void procSigVhtBQamMod(uint8_t *intedbits, gr_complex *sig)
 	sig[57] = C8P_QAM_TAB_BPSK[1];
 	sig[7] = C8P_QAM_TAB_BPSK[1];
 	sig[21] = C8P_QAM_TAB_BPSK[0];
+}
+
+void procToneScalingHeader(gr_complex* sig, float ntf, int len)
+{
+	float tmpFactor = 1.0f / sqrtf(ntf) / 3.55555f;
+	for(int i=0;i<len;i++)
+	{
+		sig[i] = sig[i] * tmpFactor;
+	}
 }
 
 c8p_preamble::c8p_preamble():ofdmIfft(64,1)
@@ -2873,6 +2882,7 @@ c8p_preamble::c8p_preamble():ofdmIfft(64,1)
 	memcpy(ofdmIfft.get_inbuf() + 32, C8P_STF_F, 32*sizeof(gr_complex));
 	ofdmIfft.execute();
 	memcpy(tmpSig, ofdmIfft.get_outbuf(), 64*sizeof(gr_complex));
+	procToneScalingHeader(tmpSig, C8P_SCALENTF_STF, 64);
 	memcpy(&stfltfl0[0], &tmpSig[32], 32*sizeof(gr_complex));
 	memcpy(&stfltfl0[32], &tmpSig[0], 64*sizeof(gr_complex));
 	memcpy(&stfltfl0[96], &tmpSig[0], 64*sizeof(gr_complex));
@@ -2883,6 +2893,7 @@ c8p_preamble::c8p_preamble():ofdmIfft(64,1)
 	memcpy(ofdmIfft.get_inbuf() + 32, C8P_LTF_L_F, 32*sizeof(gr_complex));
 	ofdmIfft.execute();
 	memcpy(tmpSig, ofdmIfft.get_outbuf(), 64*sizeof(gr_complex));
+	procToneScalingHeader(tmpSig, C8P_SCALENTF_L, 64);
 	memcpy(&stfltfl0[160], &tmpSig[32], 32*sizeof(gr_complex));
 	memcpy(&stfltfl0[192], &tmpSig[0], 64*sizeof(gr_complex));
 	memcpy(&stfltfl0[256], &tmpSig[0], 64*sizeof(gr_complex));
@@ -2898,6 +2909,7 @@ c8p_preamble::c8p_preamble():ofdmIfft(64,1)
 	memcpy(ofdmIfft.get_inbuf() + 32, tmpSig, 32*sizeof(gr_complex));
 	ofdmIfft.execute();
 	memcpy(tmpSig, ofdmIfft.get_outbuf(), 64*sizeof(gr_complex));
+	procToneScalingHeader(tmpSig, C8P_SCALENTF_STF, 64);
 	memcpy(&stfltfl1[0], &tmpSig[32], 32*sizeof(gr_complex));
 	memcpy(&stfltfl1[32], &tmpSig[0], 64*sizeof(gr_complex));
 	memcpy(&stfltfl1[96], &tmpSig[0], 64*sizeof(gr_complex));
@@ -2908,6 +2920,7 @@ c8p_preamble::c8p_preamble():ofdmIfft(64,1)
 	memcpy(ofdmIfft.get_inbuf() + 32, tmpSig, 32*sizeof(gr_complex));
 	ofdmIfft.execute();
 	memcpy(tmpSig, ofdmIfft.get_outbuf(), 64*sizeof(gr_complex));
+	procToneScalingHeader(tmpSig, C8P_SCALENTF_L, 64);
 	memcpy(&stfltfl1[160], &tmpSig[32], 32*sizeof(gr_complex));
 	memcpy(&stfltfl1[192], &tmpSig[0], 64*sizeof(gr_complex));
 	memcpy(&stfltfl1[256], &tmpSig[0], 64*sizeof(gr_complex));
@@ -2923,6 +2936,7 @@ c8p_preamble::c8p_preamble():ofdmIfft(64,1)
 	memcpy(ofdmIfft.get_inbuf() + 32, tmpSig, 32*sizeof(gr_complex));
 	ofdmIfft.execute();
 	memcpy(tmpSig, ofdmIfft.get_outbuf(), 64*sizeof(gr_complex));
+	procToneScalingHeader(tmpSig, C8P_SCALENTF_STF, 64);
 	memcpy(&stfnl1[16], &tmpSig[0], 64*sizeof(gr_complex));
 	memcpy(&stfnl1[0], &tmpSig[48], 16*sizeof(gr_complex));
 
@@ -2931,12 +2945,14 @@ c8p_preamble::c8p_preamble():ofdmIfft(64,1)
 	memcpy(ofdmIfft.get_inbuf() + 32, C8P_LTF_NL_F, 32*sizeof(gr_complex));
 	ofdmIfft.execute();
 	memcpy(tmpSig, ofdmIfft.get_outbuf(), 64*sizeof(gr_complex));
+	procToneScalingHeader(tmpSig, C8P_SCALENTF_NL, 64);
 	memcpy(&ltfnl0[0], &tmpSig[48], 16*sizeof(gr_complex));
 	memcpy(&ltfnl0[16], &tmpSig[0], 64*sizeof(gr_complex));
 	memcpy(ofdmIfft.get_inbuf(), C8P_LTF_NL_F_N + 32, 32*sizeof(gr_complex));
 	memcpy(ofdmIfft.get_inbuf() + 32, C8P_LTF_NL_F_N, 32*sizeof(gr_complex));
 	ofdmIfft.execute();
 	memcpy(tmpSig, ofdmIfft.get_outbuf(), 64*sizeof(gr_complex));
+	procToneScalingHeader(tmpSig, C8P_SCALENTF_NL, 64);
 	memcpy(&ltfnl0[80], &tmpSig[48], 16*sizeof(gr_complex));
 	memcpy(&ltfnl0[96], &tmpSig[0], 64*sizeof(gr_complex));
 
@@ -2947,6 +2963,7 @@ c8p_preamble::c8p_preamble():ofdmIfft(64,1)
 	memcpy(ofdmIfft.get_inbuf() + 32, tmpSig, 32*sizeof(gr_complex));
 	ofdmIfft.execute();
 	memcpy(tmpSig, ofdmIfft.get_outbuf(), 64*sizeof(gr_complex));
+	procToneScalingHeader(tmpSig, C8P_SCALENTF_NL, 64);
 	memcpy(&ltfnl10[0], &tmpSig[48], 16*sizeof(gr_complex));
 	memcpy(&ltfnl10[16], &tmpSig[0], 64*sizeof(gr_complex));
 	memcpy(&ltfnl11ht[0], &tmpSig[48], 16*sizeof(gr_complex));
@@ -2959,6 +2976,7 @@ c8p_preamble::c8p_preamble():ofdmIfft(64,1)
 	memcpy(ofdmIfft.get_inbuf() + 32, tmpSig, sizeof(gr_complex)*32);
 	ofdmIfft.execute();
 	memcpy(tmpSig, ofdmIfft.get_outbuf(), sizeof(gr_complex)*64);
+	procToneScalingHeader(tmpSig, C8P_SCALENTF_NL, 64);
 	memcpy(&ltfnl11vht[0], &tmpSig[48], 16*sizeof(gr_complex));
 	memcpy(&ltfnl11vht[16], &tmpSig[0], 64*sizeof(gr_complex));
 }
@@ -2975,6 +2993,7 @@ void c8p_preamble::genLegacy(c8p_mod *m, gr_complex *sig)
 	procIntelLegacyBpsk(sigLBitsCoded, sigLBitsInted);
 	procSigQamMod(sigLBitsInted, ofdmIfft.get_inbuf());
 	ofdmIfft.execute();
+	procToneScalingHeader(ofdmIfft.get_outbuf(), C8P_SCALENTF_L, 64);
 	memcpy(sig+320+16, ofdmIfft.get_outbuf(), sizeof(gr_complex)*64);
 	memcpy(sig+320, ofdmIfft.get_outbuf()+48, sizeof(gr_complex)*16);
 }
@@ -2988,6 +3007,7 @@ void c8p_preamble::genHTSiso(c8p_mod *m, gr_complex *sig)
 	procIntelLegacyBpsk(sigLBitsCoded, sigLBitsInted);
 	procSigQamMod(sigLBitsInted, ofdmIfft.get_inbuf());
 	ofdmIfft.execute();
+	procToneScalingHeader(ofdmIfft.get_outbuf(), C8P_SCALENTF_L, 64);
 	memcpy(sig+320+16, ofdmIfft.get_outbuf(), sizeof(gr_complex)*64);
 	memcpy(sig+320, ofdmIfft.get_outbuf()+48, sizeof(gr_complex)*16);
 
@@ -2996,10 +3016,12 @@ void c8p_preamble::genHTSiso(c8p_mod *m, gr_complex *sig)
 	procIntelLegacyBpsk(&sigHTBitsCoded[48], &sigHTBitsInted[48]);
 	procSigQamQMod(sigHTBitsInted, ofdmIfft.get_inbuf());
 	ofdmIfft.execute();
+	procToneScalingHeader(ofdmIfft.get_outbuf(), C8P_SCALENTF_L, 64);
 	memcpy(sig+400+16, ofdmIfft.get_outbuf(), sizeof(gr_complex)*64);
 	memcpy(sig+400, ofdmIfft.get_outbuf()+48, sizeof(gr_complex)*16);
 	procSigQamQMod(sigHTBitsInted+48, ofdmIfft.get_inbuf());
 	ofdmIfft.execute();
+	procToneScalingHeader(ofdmIfft.get_outbuf(), C8P_SCALENTF_L, 64);
 	memcpy(sig+480+16, ofdmIfft.get_outbuf(), sizeof(gr_complex)*64);
 	memcpy(sig+480, ofdmIfft.get_outbuf()+48, sizeof(gr_complex)*16);
 	memcpy(sig+560, stfnl0, sizeof(gr_complex)*80);
