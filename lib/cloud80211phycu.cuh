@@ -66,6 +66,8 @@ class cloud80211modcu
     int *interLutLIdx[6];
     int *interLutNL;
     int *interLutNLIdx[6];
+    int *interLutNL2;
+    int *interLutNL2Idx[6];
     cuFloatComplex *qamLut;
     cuFloatComplex *qamLutIdx[6];
     int *qamScMapL;
@@ -75,6 +77,7 @@ class cloud80211modcu
     cuFloatComplex *pilotsHT2;
     cuFloatComplex *pilotsVHT;
     cuFloatComplex *pilotsVHT2;
+    cuFloatComplex *symCsdNL2;
     cufftHandle ifftModPlan;
     cudaStream_t modStream0;
     cudaStream_t modStream1;

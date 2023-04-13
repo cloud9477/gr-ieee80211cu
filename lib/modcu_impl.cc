@@ -162,38 +162,13 @@ namespace gr {
         else
         {
           // SU
-          // std::cout<<"single user packet payload:"<<std::endl;
-          // std::cout << std::hex;
-          // for(int i=0;i<d_pktLen0;i++)
-          // {
-          //   std::cout<< (int)d_pkt[i] << " ";
-          // }
-          // std::cout<<std::endl;
-          // std::cout << std::dec;
           d_modcu.cuModPktCopySu(0, d_nPktTotal, d_pkt);
           formatToModSu(&d_m, d_pktFormat, d_pktMcs0, d_pktNss0, d_pktLen0);
           if(d_m.format == C8P_F_L)
           {
             d_pream.genLegacy(&d_m, d_sig0);
             d_modcu.cuModLHTSiso(&d_m, (cuFloatComplex*) (d_sig0 + 400));
-            // procWindowing(d_sig0, d_m.nSym + 1);
-
-            std::cout<<"legacyreal = [";
-            for(int i=0;i<(400 + d_m.nSym * 80);i++)
-            {
-              std::cout<<d_sig0[i].real()<<", ";
-            }
-            std::cout<<"]";
-            std::cout<<std::endl;
-            std::cout<<std::endl;
-            std::cout<<"legacyimag = [";
-            for(int i=0;i<(400 + d_m.nSym * 80);i++)
-            {
-              std::cout<<d_sig0[i].imag()<<", ";
-            }
-            std::cout<<"]";
-            std::cout<<std::endl;
-            std::cout<<std::endl;
+            procWindowing(d_sig0, d_m.nSym + 1);
           }
           else if(d_m.nSS == 1)
           {
@@ -202,46 +177,12 @@ namespace gr {
               d_pream.genHTSiso(&d_m, d_sig0);
               d_modcu.cuModLHTSiso(&d_m, (cuFloatComplex*) (d_sig0 + 640 + 80*d_m.nLTF));
               procWindowing(d_sig0, d_m.nSym + 4 + d_m.nLTF);
-
-              std::cout<<"htreal = [";
-              for(int i=0;i<(640 + d_m.nLTF * 80 + d_m.nSym * 80);i++)
-              {
-                std::cout<<d_sig0[i].real()<<", ";
-              }
-              std::cout<<"]";
-              std::cout<<std::endl;
-              std::cout<<std::endl;
-              std::cout<<"htimag = [";
-              for(int i=0;i<(640 + d_m.nLTF * 80 + d_m.nSym * 80);i++)
-              {
-                std::cout<<d_sig0[i].imag()<<", ";
-              }
-              std::cout<<"]";
-              std::cout<<std::endl;
-              std::cout<<std::endl;
             }
             else
             {
               d_pream.genVHTSiso(&d_m, d_sig0, d_pktVhtSigBCrc);
               d_modcu.cuModVHTSiso(&d_m, (cuFloatComplex*) (d_sig0 + 720 + 80*d_m.nLTF), d_pktVhtSigBCrc);
               procWindowing(d_sig0, d_m.nSym + 5 + d_m.nLTF);
-
-              std::cout<<"vhtreal = [";
-              for(int i=0;i<(400 + d_m.nSym * 80);i++)
-              {
-                std::cout<<d_sig0[i].real()<<", ";
-              }
-              std::cout<<"]";
-              std::cout<<std::endl;
-              std::cout<<std::endl;
-              std::cout<<"vhtimag = [";
-              for(int i=0;i<(400 + d_m.nSym * 80);i++)
-              {
-                std::cout<<d_sig0[i].imag()<<", ";
-              }
-              std::cout<<"]";
-              std::cout<<std::endl;
-              std::cout<<std::endl;
             }
           }
           else
@@ -255,7 +196,44 @@ namespace gr {
             }
             else
             {
-              
+              d_pream.genVHTSuMimo(&d_m, d_sig0, d_sig1, d_pktVhtSigBCrc);
+              d_modcu.cuModVHTSuMimo(&d_m, (cuFloatComplex*) (d_sig0 + 720 + 80*d_m.nLTF), (cuFloatComplex*) (d_sig1 + 720 + 80*d_m.nLTF), d_pktVhtSigBCrc);
+              procWindowing(d_sig0, d_m.nSym + 4 + d_m.nLTF);
+              procWindowing(d_sig1, d_m.nSym + 4 + d_m.nLTF);
+
+              std::cout<<"vhtreal0 = [";
+              for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * 80);i++)
+              {
+                std::cout<<d_sig0[i].real()<<", ";
+              }
+              std::cout<<"]";
+              std::cout<<std::endl;
+              std::cout<<std::endl;
+              std::cout<<"vhtimag0 = [";
+              for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * 80);i++)
+              {
+                std::cout<<d_sig0[i].imag()<<", ";
+              }
+              std::cout<<"]";
+              std::cout<<std::endl;
+              std::cout<<std::endl;
+
+              std::cout<<"vhtreal1 = [";
+              for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * 80);i++)
+              {
+                std::cout<<d_sig1[i].real()<<", ";
+              }
+              std::cout<<"]";
+              std::cout<<std::endl;
+              std::cout<<std::endl;
+              std::cout<<"vhtimag1 = [";
+              for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * 80);i++)
+              {
+                std::cout<<d_sig1[i].imag()<<", ";
+              }
+              std::cout<<"]";
+              std::cout<<std::endl;
+              std::cout<<std::endl;
             }
           }
 
