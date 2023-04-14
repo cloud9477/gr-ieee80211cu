@@ -30,7 +30,7 @@ namespace gr {
     class preproccu_impl : public preproccu
     {
      private:
-      // Nothing to declare in this block.
+      cloud80211preproccu d_preProcCu;
 
      public:
       preproccu_impl();

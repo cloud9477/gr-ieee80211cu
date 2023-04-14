@@ -40,7 +40,6 @@ namespace gr {
               gr::io_signature::make(1, 1, sizeof(gr_complex)),
               gr::io_signature::makev(2, 2, std::vector<int>{sizeof(float), sizeof(gr_complex)}))
     {
-      preprocMall();
     }
 
     /*
@@ -48,7 +47,6 @@ namespace gr {
      */
     preproccu_impl::~preproccu_impl()
     {
-      preprocFree();
     }
 
     void
@@ -71,7 +69,7 @@ namespace gr {
 
       if(nGen > 64 && nGen < PREPROC_MAX)
       {
-        cuPreProc(nGen, (const cuFloatComplex*)inSig, outAc, (cuFloatComplex*)outConj);
+        d_preProcCu.preProc(nGen, (const cuFloatComplex*)inSig, outAc, (cuFloatComplex*)outConj);
         consume_each(nGen - 64);
         return (nGen - 64);
       }

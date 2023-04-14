@@ -38,20 +38,87 @@
 
 #define CUDEMOD_VTB_LEN 80
 
-void preprocMall();
-void preprocFree();
-void cuPreProc(int n, const cuFloatComplex *sig, float* ac, cuFloatComplex* conj);
 
-void cuDemodMall();
-void cuDemodMall2();
-void cuDemodFree();
-void cuDemodFree2();
-void cuDemodChanSiso(cuFloatComplex *chan);
-void cuDemodChanMimo(cuFloatComplex *chan, cuFloatComplex *chaninv, cuFloatComplex *pilotsltf);
-void cuDemodSigCopy(int i, int n, const cuFloatComplex *sig);
-void cuDemodSigCopy2(int i, int j, int n, const cuFloatComplex *sig, const cuFloatComplex *sig2);
-void cuDemodSiso(c8p_mod* m, unsigned char* psduBytes);
-void cuDemodMimo(c8p_mod* m, unsigned char* psduBytes);
+class cloud80211preproccu
+{
+  private:
+    cuFloatComplex* ppSig;
+    cuFloatComplex* ppSigConj;
+    cuFloatComplex* ppSigConjAvg;
+    float* ppSigConjAvgMag;
+    float* ppSigMag2;
+    float* ppSigMag2Avg;
+    float* ppOut;
+    void cuMall();
+    void cuFree();
+
+  public:
+    cloud80211preproccu();
+    ~cloud80211preproccu();
+    void preProc(int n, const cuFloatComplex *sig, float* ac, cuFloatComplex* conj);
+};
+
+class cloud80211demodcu
+{
+  private:
+    cuFloatComplex* demodChanSiso;
+    cuFloatComplex* demodChanMimo;
+    cuFloatComplex* demodChanMimoInv;
+    cuFloatComplex* demodSig;
+    cuFloatComplex* demodSigFft;
+    cufftHandle demodPlan;
+    cuFloatComplex* pilotsLegacy;
+    cuFloatComplex* pilotsHt;
+    cuFloatComplex* pilotsHt2;
+    cuFloatComplex* pilotsVht;
+    cuFloatComplex* pilotsVht2;
+    cuFloatComplex* pilotsNlLtf2;
+    float* demodSigLlr;
+
+    int* demodDemapFftL;
+    int* demodDemapBpskL;
+    int* demodDemapQpskL;
+    int* demodDemap16QamL;
+    int* demodDemap64QamL;
+    int* demodDemapL[6] = {NULL, NULL, NULL, NULL, NULL, NULL};
+
+    int* demodDemapFftNL;
+    int* demodDemapBpskNL;
+    int* demodDemapQpskNL;
+    int* demodDemap16QamNL;
+    int* demodDemap64QamNL;
+    int* demodDemap256QamNL;
+    int* demodDemapNL[6] = {NULL, NULL, NULL, NULL, NULL, NULL};
+
+    int* demodDemapBpskNL2;
+    int* demodDemapQpskNL2;
+    int* demodDemap16QamNL2;
+    int* demodDemap64QamNL2;
+    int* demodDemap256QamNL2;
+    int* demodDemapNL2[6] = {NULL, NULL, NULL, NULL, NULL, NULL};
+
+    int* cuv_seq;
+    int* cuv_seqtb;
+    int* cuv_state_his;
+    int* cuv_state_next;
+    int* cuv_state_output;
+    int* cuv_cr_punc;
+    unsigned char* cuv_bits;
+    unsigned char* cuv_descram_seq;
+    unsigned char* cuv_bytes;
+    void cuDemodMall();
+    void cuDemodFree();
+  
+  public:
+    cloud80211demodcu();
+    ~cloud80211demodcu();
+    void cuDemodChanSiso(cuFloatComplex *chan);
+    void cuDemodChanMimo(cuFloatComplex *chan, cuFloatComplex *chaninv, cuFloatComplex *pilotsltf);
+    void cuDemodSigCopy(int i, int n, const cuFloatComplex *sig);
+    void cuDemodSigCopy2(int i, int j, int n, const cuFloatComplex *sig, const cuFloatComplex *sig2);
+    void cuDemodSiso(c8p_mod* m, unsigned char* psduBytes);
+    void cuDemodMimo(c8p_mod* m, unsigned char* psduBytes);
+};
 
 class cloud80211modcu
 {

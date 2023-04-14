@@ -53,9 +53,6 @@ namespace gr {
       memset(d_legacyMcsCount, 0, sizeof(uint64_t) * 8);
       memset(d_htMcsCount, 0, sizeof(uint64_t) * 8);
       set_tag_propagation_policy(block::TPP_DONT);
-      std::cout << "ieee80211 demodcu, cuda mall"<<std::endl;
-      cuDemodMall();
-      std::cout << "ieee80211 demodcu, cuda mall finish"<<std::endl;
     }
 
     /*
@@ -63,9 +60,6 @@ namespace gr {
      */
     demodcu_impl::~demodcu_impl()
     {
-      std::cout << "ieee80211 demodcu, cuda free"<<std::endl;
-      cuDemodFree();
-      std::cout << "ieee80211 demodcu, cuda free finish"<<std::endl;
     }
 
     void
@@ -115,7 +109,7 @@ namespace gr {
           if(d_nSigLMcs > 0)
           {
             signalParserL(d_nSigLMcs, d_nSigLLen, &d_m);
-            cuDemodChanSiso((cuFloatComplex*) d_H);
+            d_demodCu.cuDemodChanSiso((cuFloatComplex*) d_H);
             d_nSampTotoal = d_m.nSymSamp * d_m.nSym;
             d_sDemod = DEMOD_S_DEMOD;
             dout<<"ieee80211 demodcu, legacy packet"<<std::endl;
@@ -162,7 +156,7 @@ namespace gr {
           {
             // go to legacy
             signalParserL(d_nSigLMcs, d_nSigLLen, &d_m);
-            cuDemodChanSiso((cuFloatComplex*) d_H);
+            d_demodCu.cuDemodChanSiso((cuFloatComplex*) d_H);
             d_nSampTotoal = d_m.nSymSamp * d_m.nSym;
             d_sDemod = DEMOD_S_DEMOD;
             dout<<"ieee80211 demodcu, check format legacy packet"<<std::endl;
@@ -180,7 +174,7 @@ namespace gr {
         int tmpNLegacySym = (d_nSigLLen*8 + 22 + 23)/24;
         if(d_m.len > 0 && d_m.len <= 4095 && d_m.nSS <= 2 && (tmpNLegacySym * 80) >= (d_m.nSym * d_m.nSymSamp + 160 + 80 + d_m.nLTF * 80 + 80))  // =0 for NDP
         {
-          cuDemodChanSiso((cuFloatComplex*) d_H_NL);
+          d_demodCu.cuDemodChanSiso((cuFloatComplex*) d_H_NL);
           d_nSampTotoal = d_m.nSymSamp * d_m.nSym;
           d_sDemod = DEMOD_S_DEMOD;
           d_nSampConsumed += (80 + d_m.nLTF*80 + 80);
@@ -219,7 +213,7 @@ namespace gr {
         int tmpNLegacySym = (d_nSigLLen*8 + 22 + 23)/24;
         if(d_m.len > 0 && d_m.len <= 4095 && d_m.nSS <= 2 && (tmpNLegacySym * 80) >= (d_m.nSym * d_m.nSymSamp + 160 + 80 + d_m.nLTF * 80))
         {
-          cuDemodChanSiso((cuFloatComplex*) d_H_NL);
+          d_demodCu.cuDemodChanSiso((cuFloatComplex*) d_H_NL);
           d_nSampTotoal = d_m.nSymSamp * d_m.nSym;
           d_sDemod = DEMOD_S_DEMOD;
           d_nSampConsumed += (80 + d_m.nLTF*80);
@@ -236,8 +230,8 @@ namespace gr {
         if((d_nProc - d_nUsed) >= (d_nSampTotoal - d_nSampCopied))
         {
           // copy and decode
-          cuDemodSigCopy(d_nSampCopied, (d_nSampTotoal - d_nSampCopied), (const cuFloatComplex*) &inSig[d_nUsed]);
-          cuDemodSiso(&d_m, d_psduBytes);
+          d_demodCu.cuDemodSigCopy(d_nSampCopied, (d_nSampTotoal - d_nSampCopied), (const cuFloatComplex*) &inSig[d_nUsed]);
+          d_demodCu.cuDemodSiso(&d_m, d_psduBytes);
           d_nSampConsumed += (d_nSampTotoal - d_nSampCopied);
           d_nUsed += (d_nSampTotoal - d_nSampCopied);          
           packetAssemble();
@@ -246,7 +240,7 @@ namespace gr {
         else
         {
           // copy
-          cuDemodSigCopy(d_nSampCopied, (d_nProc - d_nUsed), (const cuFloatComplex*) &inSig[d_nUsed]);
+          d_demodCu.cuDemodSigCopy(d_nSampCopied, (d_nProc - d_nUsed), (const cuFloatComplex*) &inSig[d_nUsed]);
           d_nSampCopied += (d_nProc - d_nUsed);
           d_nSampConsumed += (d_nProc - d_nUsed);
           d_nUsed = d_nProc;

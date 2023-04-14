@@ -48,6 +48,7 @@ namespace gr {
       int d_nProc;
       int d_nUsed;
       int d_sDemod;
+      cloud80211demodcu d_demodCu;
       // parameters
       int d_muPos;
       int d_muGroupId;

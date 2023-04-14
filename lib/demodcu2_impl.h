@@ -48,6 +48,7 @@ namespace gr {
       int d_nProc;
       int d_nUsed;
       int d_sDemod;
+      cloud80211demodcu d_demodCu;
       // received info from tag
       std::vector<gr::tag_t> tags;
       int d_nSigLMcs;

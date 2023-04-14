@@ -23,35 +23,6 @@
 
 /*--------------------------------------------------------------------------------------------------------*/
 
-cuFloatComplex* ppSig;
-cuFloatComplex* ppSigConj;
-cuFloatComplex* ppSigConjAvg;
-float* ppSigConjAvgMag;
-float* ppSigMag2;
-float* ppSigMag2Avg;
-float* ppOut;
-
-void preprocMall()
-{
-  cudaMalloc(&ppSig, PREPROC_MAX*sizeof(cuFloatComplex));
-  cudaMalloc(&ppSigConj, PREPROC_MAX*sizeof(cuFloatComplex));
-  cudaMalloc(&ppSigConjAvg, PREPROC_MAX*sizeof(cuFloatComplex));
-  cudaMalloc(&ppSigConjAvgMag, PREPROC_MAX*sizeof(float));
-  cudaMalloc(&ppSigMag2, PREPROC_MAX*sizeof(float));
-  cudaMalloc(&ppSigMag2Avg, PREPROC_MAX*sizeof(float));
-  cudaMalloc(&ppOut, PREPROC_MAX*sizeof(float));
-}
-
-void preprocFree()
-{
-  cudaFree(ppSig);
-  cudaFree(ppSigConj);
-  cudaFree(ppSigConjAvg);
-  cudaFree(ppSigConjAvgMag);
-  cudaFree(ppSigMag2);
-  cudaFree(ppSigMag2Avg);
-  cudaFree(ppOut);
-}
 
 __global__
 void cuPreProcConj(int n, cuFloatComplex* inSig, cuFloatComplex* inSigConj)
@@ -104,7 +75,39 @@ void cuPreProcMag2AvgOut(int n, float* inSigMag2, float* inSigMag2Avg, float* in
   }
 }
 
-void cuPreProc(int n, const cuFloatComplex *sig, float* ac, cuFloatComplex* conj)
+cloud80211preproccu::cloud80211preproccu()
+{
+  cuMall();
+}
+
+cloud80211preproccu::~cloud80211preproccu()
+{
+  cuFree();
+}
+
+void cloud80211preproccu::cuMall()
+{
+  cudaMalloc(&ppSig, PREPROC_MAX*sizeof(cuFloatComplex));
+  cudaMalloc(&ppSigConj, PREPROC_MAX*sizeof(cuFloatComplex));
+  cudaMalloc(&ppSigConjAvg, PREPROC_MAX*sizeof(cuFloatComplex));
+  cudaMalloc(&ppSigConjAvgMag, PREPROC_MAX*sizeof(float));
+  cudaMalloc(&ppSigMag2, PREPROC_MAX*sizeof(float));
+  cudaMalloc(&ppSigMag2Avg, PREPROC_MAX*sizeof(float));
+  cudaMalloc(&ppOut, PREPROC_MAX*sizeof(float));
+}
+
+void cloud80211preproccu::cuFree()
+{
+  cudaFree(ppSig);
+  cudaFree(ppSigConj);
+  cudaFree(ppSigConjAvg);
+  cudaFree(ppSigConjAvgMag);
+  cudaFree(ppSigMag2);
+  cudaFree(ppSigMag2Avg);
+  cudaFree(ppOut);
+}
+
+void cloud80211preproccu::preProc(int n, const cuFloatComplex *sig, float* ac, cuFloatComplex* conj)
 {
   if(n > 64 && n < PREPROC_MAX)
   {
@@ -119,7 +122,7 @@ void cuPreProc(int n, const cuFloatComplex *sig, float* ac, cuFloatComplex* conj
 }
 
 /*--------------------------------------------------------------------------------------------------------*/
-unsigned char descramSeq[128][127] = {
+unsigned char C8P_DESCRAMBLE_SEQ[128][127] = {
 {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,},
 {1,0,0,0,1,0,0,1,1,0,0,0,1,0,1,1,1,0,1,0,1,1,0,1,1,0,0,0,0,0,1,1,0,0,1,1,0,1,0,1,0,0,1,1,1,0,0,1,1,1,1,0,1,1,0,1,0,0,0,0,1,0,1,0,1,0,1,1,1,1,1,0,1,0,0,1,0,1,0,0,0,1,1,0,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,0,1,1,1,0,1,1,1,1,0,0,1,0,1,1,0,0,1,0,0,1,0,0,0,0,0,0,},
 {0,1,0,0,0,1,0,0,1,1,0,0,0,1,0,1,1,1,0,1,0,1,1,0,1,1,0,0,0,0,0,1,1,0,0,1,1,0,1,0,1,0,0,1,1,1,0,0,1,1,1,1,0,1,1,0,1,0,0,0,0,1,0,1,0,1,0,1,1,1,1,1,0,1,0,0,1,0,1,0,0,0,1,1,0,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,0,1,1,1,0,1,1,1,1,0,0,1,0,1,1,0,0,1,0,0,1,0,0,0,0,0,},
@@ -444,51 +447,7 @@ int mapDeshiftFftLegacy[64] = {
 int mapDeshiftFftNonlegacy[64] = {
   -1, 26, 27, 28, 29, 30, 31, -1, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, -1, 45, 46, 47, 48, 49, 50, 51, -1, -1, -1, 
   -1, -1, -1, -1, 0, 1, 2, 3, 4, 5, 6, -1, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, -1, 20, 21, 22, 23, 24, 25};
-cuFloatComplex* demodChanSiso;
-cuFloatComplex* demodChanMimo;
-cuFloatComplex* demodChanMimoInv;
-cuFloatComplex* demodSig;
-cuFloatComplex* demodSigFft;
-cufftHandle demodPlan;
-cuFloatComplex* pilotsLegacy;
-cuFloatComplex* pilotsHt;
-cuFloatComplex* pilotsHt2;
-cuFloatComplex* pilotsVht;
-cuFloatComplex* pilotsVht2;
-cuFloatComplex* pilotsNlLtf2;
-float* demodSigLlr;
 
-int* demodDemapFftL;
-int* demodDemapBpskL;
-int* demodDemapQpskL;
-int* demodDemap16QamL;
-int* demodDemap64QamL;
-int* demodDemapL[6] = {NULL, NULL, NULL, NULL, NULL, NULL};
-
-int* demodDemapFftNL;
-int* demodDemapBpskNL;
-int* demodDemapQpskNL;
-int* demodDemap16QamNL;
-int* demodDemap64QamNL;
-int* demodDemap256QamNL;
-int* demodDemapNL[6] = {NULL, NULL, NULL, NULL, NULL, NULL};
-
-int* demodDemapBpskNL2;
-int* demodDemapQpskNL2;
-int* demodDemap16QamNL2;
-int* demodDemap64QamNL2;
-int* demodDemap256QamNL2;
-int* demodDemapNL2[6] = {NULL, NULL, NULL, NULL, NULL, NULL};
-
-int* cuv_seq;
-int* cuv_seqtb;
-int* cuv_state_his;
-int* cuv_state_next;
-int* cuv_state_output;
-int* cuv_cr_punc;
-unsigned char* cuv_bits;
-unsigned char* cuv_descram_seq;
-unsigned char* cuv_bytes;
 
 __global__
 void cuDemodChopSamp(int n, cuFloatComplex* sig, cuFloatComplex* sigfft)
@@ -908,7 +867,7 @@ __global__ void cuDecodeB2B(int n, unsigned char* bits, unsigned char* bytes)
   }
 }
 
-void cuDemodMall()
+void cloud80211demodcu::cuDemodMall()
 {
   cudaError_t err;
   err = cudaMalloc(&demodChanSiso, sizeof(cuFloatComplex) * 64);
@@ -925,7 +884,7 @@ void cuDemodMall()
   if(err){ std::cout<<"cloud80211 demodcu, malloc siso ht pilots error."<<std::endl;}
   err = cudaMalloc(&pilotsVht, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 4);
   if(err){ std::cout<<"cloud80211 demodcu, malloc siso vht pilots error."<<std::endl;}
-  cuFloatComplex pListTmp[CUDEMOD_S_MAX * 4];
+  cuFloatComplex pListTmp[CUDEMOD_S_MAX * 8];
   for(int i=0;i<CUDEMOD_S_MAX;i++)
   {
     pListTmp[i*4] = make_cuFloatComplex(1.0f * PILOT_P[(i+1)%127], 0.0f);
@@ -1033,13 +992,8 @@ void cuDemodMall()
   cudaMemcpy(cuv_cr_punc, tmpPunc, 22 * sizeof(int), cudaMemcpyHostToDevice);
   err = cudaMalloc(&cuv_descram_seq, sizeof(unsigned char) * 128 * 127);
   if(err){ std::cout<<"cloud80211 demodcu, malloc decode descramble seq error."<<std::endl;}
-  cudaMemcpy(cuv_descram_seq, descramSeq, sizeof(unsigned char) * 128 * 127, cudaMemcpyHostToDevice);
-}
+  cudaMemcpy(cuv_descram_seq, C8P_DESCRAMBLE_SEQ, sizeof(unsigned char) * 128 * 127, cudaMemcpyHostToDevice);
 
-void cuDemodMall2()
-{
-  cuDemodMall();
-  cudaError_t err;
   err = cudaMalloc(&demodChanMimo, sizeof(cuFloatComplex) * 256);
   if(err){ std::cout<<"cloud80211 demodcu, malloc mimo chan error."<<std::endl;}
   err = cudaMalloc(&demodChanMimoInv, sizeof(cuFloatComplex) * 256);
@@ -1050,53 +1004,53 @@ void cuDemodMall2()
   if(err){ std::cout<<"cloud80211 demodcu, malloc mimo vht pilots 2 error."<<std::endl;}
   err = cudaMalloc(&pilotsNlLtf2, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 8);
   if(err){ std::cout<<"cloud80211 demodcu, malloc siso nl pilots ltf 2 error."<<std::endl;}
-  cuFloatComplex pListTmp[CUDEMOD_S_MAX * 8];
-  float pTmp[8] = {1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f};
+
+  float pTmp3[8] = {1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f};
   for(int i=0;i<CUDEMOD_S_MAX;i++)
   {
-    pListTmp[i*8] = make_cuFloatComplex(pTmp[0] * PILOT_P[(i+3)%127], 0.0f);
-    pListTmp[i*8+1] = make_cuFloatComplex(pTmp[1] * PILOT_P[(i+3)%127], 0.0f);
-    pListTmp[i*8+2] = make_cuFloatComplex(pTmp[2] * PILOT_P[(i+3)%127], 0.0f);
-    pListTmp[i*8+3] = make_cuFloatComplex(pTmp[3] * PILOT_P[(i+3)%127], 0.0f);
-    pListTmp[i*8+4] = make_cuFloatComplex(pTmp[4] * PILOT_P[(i+3)%127], 0.0f);
-    pListTmp[i*8+5] = make_cuFloatComplex(pTmp[5] * PILOT_P[(i+3)%127], 0.0f);
-    pListTmp[i*8+6] = make_cuFloatComplex(pTmp[6] * PILOT_P[(i+3)%127], 0.0f);
-    pListTmp[i*8+7] = make_cuFloatComplex(pTmp[7] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8]   = make_cuFloatComplex(pTmp3[0] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8+1] = make_cuFloatComplex(pTmp3[1] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8+2] = make_cuFloatComplex(pTmp3[2] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8+3] = make_cuFloatComplex(pTmp3[3] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8+4] = make_cuFloatComplex(pTmp3[4] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8+5] = make_cuFloatComplex(pTmp3[5] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8+6] = make_cuFloatComplex(pTmp3[6] * PILOT_P[(i+3)%127], 0.0f);
+    pListTmp[i*8+7] = make_cuFloatComplex(pTmp3[7] * PILOT_P[(i+3)%127], 0.0f);
 
-    float tmpPilot = pTmp[0];
-    pTmp[0] = pTmp[1];
-    pTmp[1] = pTmp[2];
-    pTmp[2] = pTmp[3];
-    pTmp[3] = tmpPilot;
-    tmpPilot = pTmp[4];
-    pTmp[4] = pTmp[5];
-    pTmp[5] = pTmp[6];
-    pTmp[6] = pTmp[7];
-    pTmp[7] = tmpPilot;
+    float tmpPilot = pTmp3[0];
+    pTmp3[0] = pTmp3[1];
+    pTmp3[1] = pTmp3[2];
+    pTmp3[2] = pTmp3[3];
+    pTmp3[3] = tmpPilot;
+    tmpPilot = pTmp3[4];
+    pTmp3[4] = pTmp3[5];
+    pTmp3[5] = pTmp3[6];
+    pTmp3[6] = pTmp3[7];
+    pTmp3[7] = tmpPilot;
   }
   cudaMemcpy(pilotsHt2, pListTmp, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 8, cudaMemcpyHostToDevice);
-  float pTmp2[8] = {1.0f, 1.0f, 1.0f, -1.0f, 1.0f, 1.0f, 1.0f, -1.0f};
+  float pTmp4[8] = {1.0f, 1.0f, 1.0f, -1.0f, 1.0f, 1.0f, 1.0f, -1.0f};
   for(int i=0;i<CUDEMOD_S_MAX;i++)
   {
-    pListTmp[i*8] = make_cuFloatComplex(pTmp2[0] * PILOT_P[(i+4)%127], 0.0f);
-    pListTmp[i*8+1] = make_cuFloatComplex(pTmp2[1] * PILOT_P[(i+4)%127], 0.0f);
-    pListTmp[i*8+2] = make_cuFloatComplex(pTmp2[2] * PILOT_P[(i+4)%127], 0.0f);
-    pListTmp[i*8+3] = make_cuFloatComplex(pTmp2[3] * PILOT_P[(i+4)%127], 0.0f);
-    pListTmp[i*8+4] = make_cuFloatComplex(pTmp2[4] * PILOT_P[(i+4)%127], 0.0f);
-    pListTmp[i*8+5] = make_cuFloatComplex(pTmp2[5] * PILOT_P[(i+4)%127], 0.0f);
-    pListTmp[i*8+6] = make_cuFloatComplex(pTmp2[6] * PILOT_P[(i+4)%127], 0.0f);
-    pListTmp[i*8+7] = make_cuFloatComplex(pTmp2[7] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8]   = make_cuFloatComplex(pTmp4[0] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8+1] = make_cuFloatComplex(pTmp4[1] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8+2] = make_cuFloatComplex(pTmp4[2] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8+3] = make_cuFloatComplex(pTmp4[3] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8+4] = make_cuFloatComplex(pTmp4[4] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8+5] = make_cuFloatComplex(pTmp4[5] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8+6] = make_cuFloatComplex(pTmp4[6] * PILOT_P[(i+4)%127], 0.0f);
+    pListTmp[i*8+7] = make_cuFloatComplex(pTmp4[7] * PILOT_P[(i+4)%127], 0.0f);
 
-    float tmpPilot = pTmp2[0];
-    pTmp2[0] = pTmp2[1];
-    pTmp2[1] = pTmp2[2];
-    pTmp2[2] = pTmp2[3];
-    pTmp2[3] = tmpPilot;
-    tmpPilot = pTmp2[4];
-    pTmp2[4] = pTmp2[5];
-    pTmp2[5] = pTmp2[6];
-    pTmp2[6] = pTmp2[7];
-    pTmp2[7] = tmpPilot;
+    float tmpPilot = pTmp4[0];
+    pTmp4[0] = pTmp4[1];
+    pTmp4[1] = pTmp4[2];
+    pTmp4[2] = pTmp4[3];
+    pTmp4[3] = tmpPilot;
+    tmpPilot = pTmp4[4];
+    pTmp4[4] = pTmp4[5];
+    pTmp4[5] = pTmp4[6];
+    pTmp4[6] = pTmp4[7];
+    pTmp4[7] = tmpPilot;
   }
   cudaMemcpy(pilotsVht2, pListTmp, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 8, cudaMemcpyHostToDevice);
 
@@ -1122,7 +1076,7 @@ void cuDemodMall2()
   demodDemapNL2[C8P_QAM_256QAM] = demodDemap256QamNL2;
 }
 
-void cuDemodFree()
+void cloud80211demodcu::cuDemodFree()
 {
   cudaFree(demodChanSiso);
   cudaFree(demodSig);
@@ -1153,11 +1107,7 @@ void cuDemodFree()
   cudaFree(cuv_state_output);
   cudaFree(cuv_cr_punc);
   cudaFree(cuv_descram_seq);
-}
 
-void cuDemodFree2()
-{
-  cuDemodFree();
   cudaFree(demodChanMimo);
   cudaFree(demodChanMimoInv);
   cudaFree(pilotsHt2);
@@ -1170,19 +1120,29 @@ void cuDemodFree2()
   cudaFree(demodDemap256QamNL2);
 }
 
-void cuDemodChanSiso(cuFloatComplex *chan)
+cloud80211demodcu::cloud80211demodcu()
+{
+  cuDemodMall();
+}
+
+cloud80211demodcu::~cloud80211demodcu()
+{
+  cuDemodFree();
+}
+
+void cloud80211demodcu::cuDemodChanSiso(cuFloatComplex *chan)
 {
   cudaMemcpy(demodChanSiso, chan, 64*sizeof(cuFloatComplex), cudaMemcpyHostToDevice);
 }
 
-void cuDemodChanMimo(cuFloatComplex *chan, cuFloatComplex *chaninv, cuFloatComplex *pilotsltf)
+void cloud80211demodcu::cuDemodChanMimo(cuFloatComplex *chan, cuFloatComplex *chaninv, cuFloatComplex *pilotsltf)
 {
   cudaMemcpy(demodChanMimo, chan, 256*sizeof(cuFloatComplex), cudaMemcpyHostToDevice);
   cudaMemcpy(demodChanMimoInv, chaninv, 256*sizeof(cuFloatComplex), cudaMemcpyHostToDevice);
   cudaMemcpy(pilotsNlLtf2, pilotsltf, 8*sizeof(cuFloatComplex), cudaMemcpyHostToDevice);
 }
 
-void cuDemodSigCopy(int i, int n, const cuFloatComplex *sig)
+void cloud80211demodcu::cuDemodSigCopy(int i, int n, const cuFloatComplex *sig)
 {
   if(i >= 0 && n >= 0 && (i+n) < (CUDEMOD_S_MAX * 80))
   {
@@ -1190,7 +1150,7 @@ void cuDemodSigCopy(int i, int n, const cuFloatComplex *sig)
   }
 }
 
-void cuDemodSigCopy2(int i, int j, int n, const cuFloatComplex *sig, const cuFloatComplex *sig2)
+void cloud80211demodcu::cuDemodSigCopy2(int i, int j, int n, const cuFloatComplex *sig, const cuFloatComplex *sig2)
 {
   if(i >= 0 && n >= 0 && (i+n) < (CUDEMOD_S_MAX * 80))
   {
@@ -1199,7 +1159,7 @@ void cuDemodSigCopy2(int i, int j, int n, const cuFloatComplex *sig, const cuFlo
   }
 }
 
-void cuDemodSiso(c8p_mod* m, unsigned char* psduBytes)
+void cloud80211demodcu::cuDemodSiso(c8p_mod* m, unsigned char* psduBytes)
 {
   int cuv_llr_len = m->nSym * m->nCBPS;
   int* cuv_cr_punc_p;
@@ -1268,7 +1228,7 @@ void cuDemodSiso(c8p_mod* m, unsigned char* psduBytes)
   cudaMemcpy(psduBytes, cuv_bytes, m->len*sizeof(unsigned char), cudaMemcpyDeviceToHost);
 }
 
-void cuDemodMimo(c8p_mod* m, unsigned char* psduBytes)
+void cloud80211demodcu::cuDemodMimo(c8p_mod* m, unsigned char* psduBytes)
 {
   int cuv_llr_len = m->nSym * m->nCBPS;
   int* cuv_cr_punc_p;

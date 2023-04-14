@@ -44,16 +44,13 @@ namespace gr {
       message_port_register_out(pmt::mp("out"));
       d_nProc = 0;
       d_nUsed = 0;
-      d_debug = true;
+      d_debug = false;
       d_sDemod = DEMOD_S_RDTAG;
       d_nPktCorrect = 0;
       memset(d_vhtMcsCount, 0, sizeof(uint64_t) * 10);
       memset(d_legacyMcsCount, 0, sizeof(uint64_t) * 8);
       memset(d_htMcsCount, 0, sizeof(uint64_t) * 8);
       set_tag_propagation_policy(block::TPP_DONT);
-      std::cout << "ieee80211 demodcu2, cuda mall2"<<std::endl;
-      cuDemodMall2();
-      std::cout << "ieee80211 demodcu2, cuda mall2 finish"<<std::endl;
     }
 
     /*
@@ -61,9 +58,6 @@ namespace gr {
      */
     demodcu2_impl::~demodcu2_impl()
     {
-      std::cout << "ieee80211 demodcu2, cuda free2"<<std::endl;
-      cuDemodFree2();
-      std::cout << "ieee80211 demodcu2, cuda free2 finish"<<std::endl;
     }
 
     void
@@ -115,7 +109,7 @@ namespace gr {
           if(d_nSigLMcs > 0)
           {
             signalParserL(d_nSigLMcs, d_nSigLLen, &d_m);
-            cuDemodChanSiso((cuFloatComplex*) d_H);
+            d_demodCu.cuDemodChanSiso((cuFloatComplex*) d_H);
             d_nSampTotoal = d_m.nSymSamp * d_m.nSym;
             d_sDemod = DEMOD_S_DEMOD;
             dout<<"ieee80211 demodcu2, legacy packet"<<std::endl;
@@ -163,7 +157,7 @@ namespace gr {
           {
             // go to legacy
             signalParserL(d_nSigLMcs, d_nSigLLen, &d_m);
-            cuDemodChanSiso((cuFloatComplex*) d_H);
+            d_demodCu.cuDemodChanSiso((cuFloatComplex*) d_H);
             d_nSampTotoal = d_m.nSymSamp * d_m.nSym;
             d_sDemod = DEMOD_S_DEMOD;
             dout<<"ieee80211 demodcu2, check format legacy packet"<<std::endl;
@@ -182,11 +176,11 @@ namespace gr {
         {
           if(d_m.nSS == 1)
           {
-            cuDemodChanSiso((cuFloatComplex*) d_H_NL);
+            d_demodCu.cuDemodChanSiso((cuFloatComplex*) d_H_NL);
           }
           else
           {
-            cuDemodChanMimo((cuFloatComplex*) d_H_NL22, (cuFloatComplex*) d_H_NL22_INV, (cuFloatComplex*) d_pilotNlLtf);
+            d_demodCu.cuDemodChanMimo((cuFloatComplex*) d_H_NL22, (cuFloatComplex*) d_H_NL22_INV, (cuFloatComplex*) d_pilotNlLtf);
           }
           d_nSampTotoal = d_m.nSymSamp * d_m.nSym;
           d_sDemod = DEMOD_S_DEMOD;
@@ -207,11 +201,11 @@ namespace gr {
         {
           if(d_m.nSS == 1)
           {
-            cuDemodChanSiso((cuFloatComplex*) d_H_NL);
+            d_demodCu.cuDemodChanSiso((cuFloatComplex*) d_H_NL);
           }
           else
           {
-            cuDemodChanMimo((cuFloatComplex*) d_H_NL22, (cuFloatComplex*) d_H_NL22_INV, (cuFloatComplex*) d_pilotNlLtf);
+            d_demodCu.cuDemodChanMimo((cuFloatComplex*) d_H_NL22, (cuFloatComplex*) d_H_NL22_INV, (cuFloatComplex*) d_pilotNlLtf);
           }
           d_nSampTotoal = d_m.nSymSamp * d_m.nSym;
           d_sDemod = DEMOD_S_DEMOD;
@@ -232,13 +226,13 @@ namespace gr {
           // copy and decode
           if(d_m.nSS == 1)
           {
-            cuDemodSigCopy(d_nSampCopied, (d_nSampTotoal - d_nSampCopied), (const cuFloatComplex*) &inSig[d_nUsed]);
-            cuDemodSiso(&d_m, d_psduBytes);
+            d_demodCu.cuDemodSigCopy(d_nSampCopied, (d_nSampTotoal - d_nSampCopied), (const cuFloatComplex*) &inSig[d_nUsed]);
+            d_demodCu.cuDemodSiso(&d_m, d_psduBytes);
           }
           else
           {
-            cuDemodSigCopy2(d_nSampCopied, d_nSampCopied + d_m.nSym * 80, (d_nSampTotoal - d_nSampCopied), (const cuFloatComplex*) &inSig[d_nUsed], (const cuFloatComplex*) &inSig2[d_nUsed]);
-            cuDemodMimo(&d_m, d_psduBytes);
+            d_demodCu.cuDemodSigCopy2(d_nSampCopied, d_nSampCopied + d_m.nSym * 80, (d_nSampTotoal - d_nSampCopied), (const cuFloatComplex*) &inSig[d_nUsed], (const cuFloatComplex*) &inSig2[d_nUsed]);
+            d_demodCu.cuDemodMimo(&d_m, d_psduBytes);
           }
           d_nSampConsumed += (d_nSampTotoal - d_nSampCopied);
           d_nUsed += (d_nSampTotoal - d_nSampCopied);
@@ -250,11 +244,11 @@ namespace gr {
           // copy
           if(d_m.nSS == 1)
           {
-            cuDemodSigCopy(d_nSampCopied, (d_nProc - d_nUsed), (const cuFloatComplex*) &inSig[d_nUsed]);
+            d_demodCu.cuDemodSigCopy(d_nSampCopied, (d_nProc - d_nUsed), (const cuFloatComplex*) &inSig[d_nUsed]);
           }
           else
           {
-            cuDemodSigCopy2(d_nSampCopied, d_nSampCopied + d_m.nSym * 80, (d_nProc - d_nUsed), (const cuFloatComplex*) &inSig[d_nUsed], (const cuFloatComplex*) &inSig2[d_nUsed]);
+            d_demodCu.cuDemodSigCopy2(d_nSampCopied, d_nSampCopied + d_m.nSym * 80, (d_nProc - d_nUsed), (const cuFloatComplex*) &inSig[d_nUsed], (const cuFloatComplex*) &inSig2[d_nUsed]);
           }
           d_nSampCopied += (d_nProc - d_nUsed);
           d_nSampConsumed += (d_nProc - d_nUsed);
