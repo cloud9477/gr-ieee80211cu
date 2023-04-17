@@ -159,6 +159,14 @@ class c8p_preamble
         uint8_t sigVHTBBitsCoded[52];
         uint8_t sigVHTBBitsInted[52];
         gr::fft::fft_complex_rev ofdmIfft;
+        // mu mimo
+        gr::fft::fft_complex_rev ofdmIfft1;
+        gr_complex stfnl1_f[64];
+        gr_complex ltfnl10_f[64];
+        gr_complex ltfnl11vht_f[64];
+        uint8_t sigVHTBBits1[26];
+        uint8_t sigVHTBBitsCoded1[52];
+        uint8_t sigVHTBBitsInted1[52];
     
     public:
         c8p_preamble();
@@ -168,7 +176,7 @@ class c8p_preamble
         void genHTSuMimo(c8p_mod *m, gr_complex *sig0, gr_complex *sig1);
         void genVHTSiso(c8p_mod *m, gr_complex *sig, uint8_t *vhtsigbcrc8);
         void genVHTSuMimo(c8p_mod *m, gr_complex *sig0, gr_complex *sig1, uint8_t *vhtsigbcrc8);
-        void genVHTMuMimo(c8p_mod *m0, c8p_mod *m1, gr_complex *sig0, gr_complex *sig1, uint8_t *vhtsigb0crc8, uint8_t *vhtsigb1crc8);
+        void genVHTMuMimo(c8p_mod *m, gr_complex *bfq, gr_complex *sig0, gr_complex *sig1, uint8_t *vhtsigb0crc8, uint8_t *vhtsigb1crc8);
         
 };
 

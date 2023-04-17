@@ -1702,6 +1702,9 @@ void cloud80211modcu::cuModMall()
   if(err){ std::cout<<"cloud80211modcu, malloc pktSymTime error."<<std::endl; initSuccess = false; return;}
   err = cudaMalloc(&pktSym, sizeof(cuFloatComplex) * CUDEMOD_S_MAX * 80);
   if(err){ std::cout<<"cloud80211modcu, malloc pktSym error."<<std::endl; initSuccess = false; return;}
+
+  err = cudaMalloc(&bfQ, sizeof(cuFloatComplex) * 256);
+  if(err){ std::cout<<"cloud80211modcu, malloc bfQ error."<<std::endl; initSuccess = false; return;}
 }
 
 void cloud80211modcu::cuModFree()
@@ -1732,11 +1735,13 @@ void cloud80211modcu::cuModFree()
   cudaFree(pktSymFreq);
   cudaFree(pktSymTime);
   cudaFree(pktSym);
+
+  cudaFree(bfQ);
 }
 
-void cloud80211modcu::cuModPktCopySu(int i, int n, const unsigned char *bytes)
+void cloud80211modcu::cuModPktCopySu(int i, int n, const unsigned char *pkt)
 {
-  cudaMemcpy(pktBytes + i, bytes, n*sizeof(unsigned char), cudaMemcpyHostToDevice);
+  cudaMemcpy(pktBytes + i, pkt, n*sizeof(unsigned char), cudaMemcpyHostToDevice);
 }
 
 void cloud80211modcu::cuModLHTSiso(c8p_mod *m, cuFloatComplex *sig)
@@ -1878,6 +1883,16 @@ void cloud80211modcu::cuModVHTSuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatCo
   cudaStreamSynchronize(modStream1);
   cudaMemcpy(sig0, pktSym, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
   cudaMemcpy(sig1, pktSym + m->nSym*m->nSymSamp, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
+}
+
+void cloud80211modcu::cuModChanCopy(cuFloatComplex *q)
+{
+  cudaMemcpy(bfQ, q, sizeof(cuFloatComplex) * 256, cudaMemcpyHostToDevice);
+}
+
+void cloud80211modcu::cuModPktCopyMu(int i0, int n0, const unsigned char *pkt0, int i1, int n1, const unsigned char *pkt1)
+{
+
 }
 
 void cloud80211modcu::cuModVHTMuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1, unsigned char *vhtSigB0Crc8Bits, unsigned char *vhtSigB1Crc8Bits)

@@ -158,16 +158,20 @@ class cloud80211modcu
     cuFloatComplex *pktSymFreq;
     cuFloatComplex *pktSymTime;
     cuFloatComplex *pktSym;
+    // beamforming matrix Q
+    cuFloatComplex *bfQ;
 
   void cuModMall();
   void cuModFree();
 
   public:
-    void cuModPktCopySu(int i, int n, const unsigned char *bytes);
+    void cuModPktCopySu(int i, int n, const unsigned char *pkt);
     void cuModLHTSiso(c8p_mod *m, cuFloatComplex *sig);
     void cuModHTMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1);
     void cuModVHTSiso(c8p_mod *m, cuFloatComplex *sig, unsigned char *vhtSigBCrc8Bits);
     void cuModVHTSuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1, unsigned char *vhtSigBCrc8Bits);
+    void cuModChanCopy(cuFloatComplex *q);
+    void cuModPktCopyMu(int i0, int n0, const unsigned char *pkt0, int i1, int n1, const unsigned char *pkt1);
     void cuModVHTMuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1, unsigned char *vhtSigB0Crc8Bits, unsigned char *vhtSigB1Crc8Bits);
     cloud80211modcu();
     ~cloud80211modcu();
