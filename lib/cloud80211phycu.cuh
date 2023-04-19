@@ -31,13 +31,15 @@
 #define PREPROC_MAX 8192
 
 #define CUDEMOD_B_MAX 4095     // max PSDU byte len
-#define CUDEMOD_T_MAX 32782    // max trellis len, psdu * 8 + 22
+#define CUDEMOD_T_MAX 32796    // max trellis len, psdu * 8 + 22, mu 2047 * 8 + 22 = 32796
 #define CUDEMOD_L_MAX 65728    // max llr len, VHT CR1/2
 #define CUDEMOD_S_MAX 1408     // max symbol number, legacy nDBPS 24 is 1366, round to multiple of fft batch 1408
 #define CUDEMOD_FFT_BATCH 64    // each execution 64 symbols
 
 #define CUDEMOD_VTB_LEN 80
 
+#define CUDEMOD_T_MAX_MU 16398    // max trellis len, mu-mimo user
+#define CUDEMOD_L_MAX_MU 32864    // max llr len, mu-mimo user
 
 class cloud80211preproccu
 {
@@ -165,13 +167,12 @@ class cloud80211modcu
   void cuModFree();
 
   public:
-    void cuModPktCopySu(int i, int n, const unsigned char *pkt);
+    void cuModPktCopy(int i, int n, const unsigned char *pkt);
     void cuModLHTSiso(c8p_mod *m, cuFloatComplex *sig);
     void cuModHTMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1);
     void cuModVHTSiso(c8p_mod *m, cuFloatComplex *sig, unsigned char *vhtSigBCrc8Bits);
     void cuModVHTSuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1, unsigned char *vhtSigBCrc8Bits);
-    void cuModChanCopy(cuFloatComplex *q);
-    void cuModPktCopyMu(int i0, int n0, const unsigned char *pkt0, int i1, int n1, const unsigned char *pkt1);
+    void cuModBfQCopy(cuFloatComplex *q);
     void cuModVHTMuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1, unsigned char *vhtSigB0Crc8Bits, unsigned char *vhtSigB1Crc8Bits);
     cloud80211modcu();
     ~cloud80211modcu();

@@ -1487,6 +1487,30 @@ __global__ void cuGiScale(int n, float sf, cuFloatComplex *symfreq, cuFloatCompl
   }
 }
 
+__global__ void cuSpatialMapping(int n, cuFloatComplex *symfreq0, cuFloatComplex *symfreq1, cuFloatComplex *bfq)
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int k;
+  cuFloatComplex tmp0, tmp1;
+  if(i >= n)
+  {
+    return;
+  }
+  k = i % 64;
+  if(k < 32)
+  {
+    tmp0 = cuCaddf(cuCmulf(symfreq0[i], bfq[(k+32)*4 + 0]), cuCmulf(symfreq1[i], bfq[(k+32)*4 + 1]));
+    tmp1 = cuCaddf(cuCmulf(symfreq0[i], bfq[(k+32)*4 + 2]), cuCmulf(symfreq1[i], bfq[(k+32)*4 + 3]));
+  }
+  else
+  {
+    tmp0 = cuCaddf(cuCmulf(symfreq0[i], bfq[(k-32)*4 + 0]), cuCmulf(symfreq1[i], bfq[(k-32)*4 + 1]));
+    tmp1 = cuCaddf(cuCmulf(symfreq0[i], bfq[(k-32)*4 + 2]), cuCmulf(symfreq1[i], bfq[(k-32)*4 + 3]));
+  }
+  symfreq0[i] = tmp0;
+  symfreq1[i] = tmp1;
+}
+
 void cuDebugBits(unsigned char *bits, int n)
 {
   uint8_t debugbits[65536];
@@ -1496,6 +1520,28 @@ void cuDebugBits(unsigned char *bits, int n)
   {
     std::cout << (int) debugbits[i] << ", ";
   }
+  std::cout<<std::endl;
+  std::cout<<std::endl;
+}
+
+void cuDebugSamples(cuFloatComplex *samps, int n)
+{
+  gr_complex debugsamps[65536];
+  cudaMemcpy(debugsamps, samps, sizeof(gr_complex) * n, cudaMemcpyDeviceToHost);
+  std::cout<<"dsreal=["<<std::endl;
+  for(int i=0;i<n;i++)
+  {
+    std::cout << debugsamps[i].real() << ", ";
+  }
+  std::cout<<"]";
+  std::cout<<std::endl;
+  std::cout<<std::endl;
+  std::cout<<"dsimag=["<<std::endl;
+  for(int i=0;i<n;i++)
+  {
+    std::cout << debugsamps[i].imag() << ", ";
+  }
+  std::cout<<"]";
   std::cout<<std::endl;
   std::cout<<std::endl;
 }
@@ -1678,9 +1724,13 @@ void cloud80211modcu::cuModMall()
   if(err){ std::cout<<"cloud80211modcu, malloc symCsdNL2 error."<<std::endl; initSuccess = false; return;}
   gr_complex tmpCsd[64];
   gr_complex tmpCsdStep = gr_complex(0.0f, -2.0f) * (float)M_PI * -400.0f * 20.0f * 0.001f;
-	for(int i=0;i<64;i++)
+	for(int i=0;i<32;i++)
 	{
-		tmpCsd[i] =  std::exp( tmpCsdStep * (float)(i - 32) / 64.0f);
+		tmpCsd[i+32] =  std::exp( tmpCsdStep * (float)(i - 32) / 64.0f);
+	}
+  for(int i=32;i<64;i++)
+	{
+		tmpCsd[i-32] =  std::exp( tmpCsdStep * (float)(i - 32) / 64.0f);
 	}
   cudaMemcpy(symCsdNL2, (cuFloatComplex*) tmpCsd, sizeof(cuFloatComplex) * 64, cudaMemcpyHostToDevice);
 
@@ -1739,7 +1789,7 @@ void cloud80211modcu::cuModFree()
   cudaFree(bfQ);
 }
 
-void cloud80211modcu::cuModPktCopySu(int i, int n, const unsigned char *pkt)
+void cloud80211modcu::cuModPktCopy(int i, int n, const unsigned char *pkt)
 {
   cudaMemcpy(pktBytes + i, pkt, n*sizeof(unsigned char), cudaMemcpyHostToDevice);
 }
@@ -1885,19 +1935,51 @@ void cloud80211modcu::cuModVHTSuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatCo
   cudaMemcpy(sig1, pktSym + m->nSym*m->nSymSamp, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
 }
 
-void cloud80211modcu::cuModChanCopy(cuFloatComplex *q)
+void cloud80211modcu::cuModBfQCopy(cuFloatComplex *q)
 {
   cudaMemcpy(bfQ, q, sizeof(cuFloatComplex) * 256, cudaMemcpyHostToDevice);
 }
 
-void cloud80211modcu::cuModPktCopyMu(int i0, int n0, const unsigned char *pkt0, int i1, int n1, const unsigned char *pkt1)
-{
-
-}
-
 void cloud80211modcu::cuModVHTMuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatComplex *sig1, unsigned char *vhtSigB0Crc8Bits, unsigned char *vhtSigB1Crc8Bits)
 {
-
+  cudaMemset(pktBits, 0, sizeof(unsigned char) * (m->nSym * m->nDBPSMu[0] + 6));
+  cudaMemset(pktBits + CUDEMOD_T_MAX_MU, 0, sizeof(unsigned char) * (m->nSym * m->nDBPSMu[1] + 6));
+  cudaMemcpy(pktBits + 8 + 6, vhtSigB0Crc8Bits, 8*sizeof(unsigned char), cudaMemcpyHostToDevice);
+  cudaMemcpy(pktBits + CUDEMOD_T_MAX_MU + 8 + 6, vhtSigB1Crc8Bits, 8*sizeof(unsigned char), cudaMemcpyHostToDevice);
+  int tmpPsduLen0 = (m->nSym * m->nDBPSMu[0] - 16 - 6) / 8;
+  int tmpPsduLen1 = (m->nSym * m->nDBPSMu[1] - 16 - 6) / 8;
+  cuCodeB2B<<<(m->lenMu[0] + 1023) / 1024, 1024, 0, modStream0>>>(m->lenMu[0], pktBytes, pktBits + 16 + 6);
+  cuCodeB2B<<<(m->lenMu[1] + 1023) / 1024, 1024, 0, modStream1>>>(m->lenMu[1], pktBytes + m->lenMu[0], pktBits + CUDEMOD_T_MAX_MU + 16 + 6);
+  cudaStreamSynchronize(modStream0);
+  cudaStreamSynchronize(modStream1);
+  cudaMemcpy(pktBits + 16 + 6 + m->lenMu[0] * 8, pktBits + 16 + 6, sizeof(unsigned char) * (tmpPsduLen0 - m->lenMu[0]) * 8, cudaMemcpyDeviceToDevice);
+  cudaMemcpy(pktBits + CUDEMOD_T_MAX_MU + 16 + 6 + m->lenMu[1] * 8, pktBits + CUDEMOD_T_MAX_MU + 16 + 6, sizeof(unsigned char) * (tmpPsduLen1 - m->lenMu[1]) * 8, cudaMemcpyDeviceToDevice);
+  cuCodeScramble<<<(m->nSym * m->nDBPSMu[0] - 6 + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nDBPSMu[0] - 6, pktBits + 6, scrambler, scramSeq);
+  cuCodeScramble<<<(m->nSym * m->nDBPSMu[1] - 6 + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nDBPSMu[1] - 6, pktBits + CUDEMOD_T_MAX_MU + 6, scrambler, scramSeq);
+  cuCodeBcc<<<(m->nSym * m->nDBPSMu[0] + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nDBPSMu[0], pktBits, pktBitsCoded);
+  cuCodeBcc<<<(m->nSym * m->nDBPSMu[1] + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nDBPSMu[1], pktBits + CUDEMOD_T_MAX_MU, pktBitsCoded + CUDEMOD_L_MAX_MU);
+  cuCodePunc<<<(m->nSym * m->nDBPSMu[0] * 2 + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nDBPSMu[0] * 2, m->crMu[0], pktBitsCoded, pktBitsPuncd);
+  cuCodePunc<<<(m->nSym * m->nDBPSMu[1] * 2 + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nDBPSMu[1] * 2, m->crMu[1], pktBitsCoded + CUDEMOD_L_MAX_MU, pktBitsPuncd + CUDEMOD_L_MAX_MU);
+  cuCodeInterleave<<<(m->nSym * m->nCBPSSMu[0] + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nCBPSSMu[0], m->nCBPSSMu[0], interLutNLIdx[m->modMu[0]], pktBitsPuncd, pktBitsInted);
+  cuCodeInterleave<<<(m->nSym * m->nCBPSSMu[1] + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nCBPSSMu[1], m->nCBPSSMu[1], interLutNLIdx[m->modMu[1]], pktBitsPuncd + CUDEMOD_L_MAX_MU, pktBitsInted + CUDEMOD_L_MAX_MU);
+  cudaStreamSynchronize(modStream0);
+  cudaStreamSynchronize(modStream1);
+  cuQamModStream<<<(m->nSym * m->nSD + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nSD, m->nSD, m->nBPSCSMu[0], qamLutIdx[m->modMu[0]], qamScMapNL, pilotsVHT, pktBitsInted, pktSymFreq);
+  cuQamModStream<<<(m->nSym * m->nSD + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nSD, m->nSD, m->nBPSCSMu[1], qamLutIdx[m->modMu[1]], qamScMapNL, pilotsVHT, pktBitsInted + CUDEMOD_L_MAX_MU, pktSymFreq + m->nSym * 64);
+  cudaStreamSynchronize(modStream0);
+  cudaStreamSynchronize(modStream1);
+  cuCsd<<<(m->nSym * 64 + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * 64, symCsdNL2, pktSymFreq + m->nSym * 64);
+  cudaStreamSynchronize(modStream1);
+  cuSpatialMapping<<<(m->nSym * 64 + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * 64, pktSymFreq, pktSymFreq + m->nSym * 64, bfQ);
+  cudaStreamSynchronize(modStream0);
+  for(int symIter=0; symIter < ((m->nSym * 2 + CUDEMOD_FFT_BATCH - 1) / CUDEMOD_FFT_BATCH); symIter++ )
+  {
+    cufftExecC2C(ifftModPlan, &pktSymFreq[symIter*CUDEMOD_FFT_BATCH*64], &pktSymTime[symIter*CUDEMOD_FFT_BATCH*64], CUFFT_INVERSE);
+  }
+  cuGiScale<<<(m->nSym * 2 * m->nSymSamp + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * 2 * m->nSymSamp, scaleFactorNL, pktSymTime, pktSym);
+  cudaStreamSynchronize(modStream0);
+  cudaMemcpy(sig0, pktSym, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
+  cudaMemcpy(sig1, pktSym + m->nSym * m->nSymSamp, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
 }
 
 cloud80211modcu::cloud80211modcu()

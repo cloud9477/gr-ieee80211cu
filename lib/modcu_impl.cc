@@ -42,6 +42,7 @@ namespace gr {
     {
       d_sModcu = MODCU_S_RDTAG;
       memset(d_pktVhtSigBCrc, 0, 8);
+      memset(d_pktVhtSigBCrc1, 0, 8);
       memset(d_pkt, 0, CUDEMOD_B_MAX);
       memset((uint8_t*) d_sig0, 0, sizeof(gr_complex) * CUDEMOD_S_MAX * 80);
       memset((uint8_t*) d_sig1, 0, sizeof(gr_complex) * CUDEMOD_S_MAX * 80);
@@ -155,15 +156,19 @@ namespace gr {
             tmpFloatPR += 1;
             tmpFloatPI += 1;
           }
-          d_modcu.cuModChanCopy((cuFloatComplex*) d_vhtBfQ);
+          d_modcu.cuModBfQCopy((cuFloatComplex*) d_vhtBfQ);
           d_sModcu = MODCU_S_RDTAG;
         }
         else if(d_pktFormat == C8P_F_VHT_MU)
         {
-          // MU
-          
+          d_pream.genVHTMuMimo(&d_m, d_vhtBfQ, d_sig0, d_sig1, d_pktVhtSigBCrc, d_pktVhtSigBCrc1);
+          d_modcu.cuModPktCopy(0, d_nPktTotal, d_pkt);
+          d_modcu.cuModVHTMuMimo(&d_m, (cuFloatComplex*) (d_sig0 + 720 + 80*d_m.nLTF), (cuFloatComplex*) (d_sig1 + 720 + 80*d_m.nLTF), d_pktVhtSigBCrc, d_pktVhtSigBCrc1);
+          procWindowing(d_sig0, d_m.nSym + 4 + d_m.nLTF);
+          procWindowing(d_sig1, d_m.nSym + 4 + d_m.nLTF);
+
           std::cout<<"vhtreal0 = [";
-          for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * 80);i++)
+          for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp);i++)
           {
             std::cout<<d_sig0[i].real()<<", ";
           }
@@ -171,7 +176,7 @@ namespace gr {
           std::cout<<std::endl;
           std::cout<<std::endl;
           std::cout<<"vhtimag0 = [";
-          for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * 80);i++)
+          for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp);i++)
           {
             std::cout<<d_sig0[i].imag()<<", ";
           }
@@ -180,7 +185,7 @@ namespace gr {
           std::cout<<std::endl;
 
           std::cout<<"vhtreal1 = [";
-          for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * 80);i++)
+          for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp);i++)
           {
             std::cout<<d_sig1[i].real()<<", ";
           }
@@ -188,7 +193,7 @@ namespace gr {
           std::cout<<std::endl;
           std::cout<<std::endl;
           std::cout<<"vhtimag1 = [";
-          for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * 80);i++)
+          for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp);i++)
           {
             std::cout<<d_sig1[i].imag()<<", ";
           }
@@ -199,7 +204,7 @@ namespace gr {
         else
         {
           // SU
-          d_modcu.cuModPktCopySu(0, d_nPktTotal, d_pkt);
+          d_modcu.cuModPktCopy(0, d_nPktTotal, d_pkt);
           formatToModSu(&d_m, d_pktFormat, d_pktMcs0, d_pktNss0, d_pktLen0);
           if(d_m.format == C8P_F_L)
           {

@@ -57,6 +57,7 @@ namespace gr {
       int d_nPktTotal;
       int d_nPktRead;
       uint8_t d_pktVhtSigBCrc[8];
+      uint8_t d_pktVhtSigBCrc1[8];
       uint8_t d_pkt[CUDEMOD_B_MAX];
       gr_complex d_sig0[CUDEMOD_S_MAX * 80];
       gr_complex d_sig1[CUDEMOD_S_MAX * 80];

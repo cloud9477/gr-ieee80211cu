@@ -3268,6 +3268,8 @@ void c8p_preamble::genVHTMuMimo(c8p_mod *m, gr_complex *bfq, gr_complex *sig0, g
 	}
 	ofdmIfft.execute();
 	ofdmIfft1.execute();
+	procToneScalingHeader(ofdmIfft.get_outbuf(), C8P_SCALENTF_STF, 64);
+	procToneScalingHeader(ofdmIfft1.get_outbuf(), C8P_SCALENTF_STF, 64);
 	memcpy(sig0+560+16, ofdmIfft.get_outbuf(), sizeof(gr_complex)*64);
 	memcpy(sig0+560, ofdmIfft.get_outbuf()+48, sizeof(gr_complex)*16);
 	memcpy(sig1+560+16, ofdmIfft1.get_outbuf(), sizeof(gr_complex)*64);
@@ -3289,6 +3291,8 @@ void c8p_preamble::genVHTMuMimo(c8p_mod *m, gr_complex *bfq, gr_complex *sig0, g
 	}
 	ofdmIfft.execute();
 	ofdmIfft1.execute();
+	procToneScalingHeader(ofdmIfft.get_outbuf(), C8P_SCALENTF_NL, 64);
+	procToneScalingHeader(ofdmIfft1.get_outbuf(), C8P_SCALENTF_NL, 64);
 	memcpy(sig0+640+16, ofdmIfft.get_outbuf(), sizeof(gr_complex)*64);
 	memcpy(sig0+640, ofdmIfft.get_outbuf()+48, sizeof(gr_complex)*16);
 	memcpy(sig1+640+16, ofdmIfft1.get_outbuf(), sizeof(gr_complex)*64);
@@ -3310,6 +3314,8 @@ void c8p_preamble::genVHTMuMimo(c8p_mod *m, gr_complex *bfq, gr_complex *sig0, g
 	}
 	ofdmIfft.execute();
 	ofdmIfft1.execute();
+	procToneScalingHeader(ofdmIfft.get_outbuf(), C8P_SCALENTF_NL, 64);
+	procToneScalingHeader(ofdmIfft1.get_outbuf(), C8P_SCALENTF_NL, 64);
 	memcpy(sig0+720+16, ofdmIfft.get_outbuf(), sizeof(gr_complex)*64);
 	memcpy(sig0+720, ofdmIfft.get_outbuf()+48, sizeof(gr_complex)*16);
 	memcpy(sig1+720+16, ofdmIfft1.get_outbuf(), sizeof(gr_complex)*64);
@@ -3326,8 +3332,15 @@ void c8p_preamble::genVHTMuMimo(c8p_mod *m, gr_complex *bfq, gr_complex *sig0, g
 	gr_complex tmpOut0, tmpOut1;
 	for(int i=0;i<32;i++)
 	{
-		tmpOut0 = fftp0[i] * bfq[i*4 + 0] + fftp1[i] * bfq[i*4 + 1];
-		tmpOut1 = fftp0[i] * bfq[i*4 + 2] + fftp1[i] * bfq[i*4 + 3];
+		tmpOut0 = fftp0[i] * bfq[(i+32)*4 + 0] + fftp1[i] * bfq[(i+32)*4 + 1];
+		tmpOut1 = fftp0[i] * bfq[(i+32)*4 + 2] + fftp1[i] * bfq[(i+32)*4 + 3];
+		fftp0[i] = tmpOut0;
+		fftp1[i] = tmpOut1;
+	}
+	for(int i=32;i<64;i++)
+	{
+		tmpOut0 = fftp0[i] * bfq[(i-32)*4 + 0] + fftp1[i] * bfq[(i-32)*4 + 1];
+		tmpOut1 = fftp0[i] * bfq[(i-32)*4 + 2] + fftp1[i] * bfq[(i-32)*4 + 3];
 		fftp0[i] = tmpOut0;
 		fftp1[i] = tmpOut1;
 	}
