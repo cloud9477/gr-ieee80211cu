@@ -3327,20 +3327,14 @@ void c8p_preamble::genVHTMuMimo(c8p_mod *m, gr_complex *bfq, gr_complex *sig0, g
 	procSigVhtBQamMod(sigVHTBBitsInted, ofdmIfft.get_inbuf());
 	procSigVhtBQamMod(sigVHTBBitsInted1, ofdmIfft1.get_inbuf());
 	procCSD(ofdmIfft1.get_inbuf(), -400);
+	// spatial mapping, bfQ already shifted
 	fftp0 = ofdmIfft.get_inbuf();
 	fftp1 = ofdmIfft1.get_inbuf();
 	gr_complex tmpOut0, tmpOut1;
-	for(int i=0;i<32;i++)
+	for(int i=0;i<64;i++)
 	{
-		tmpOut0 = fftp0[i] * bfq[(i+32)*4 + 0] + fftp1[i] * bfq[(i+32)*4 + 1];
-		tmpOut1 = fftp0[i] * bfq[(i+32)*4 + 2] + fftp1[i] * bfq[(i+32)*4 + 3];
-		fftp0[i] = tmpOut0;
-		fftp1[i] = tmpOut1;
-	}
-	for(int i=32;i<64;i++)
-	{
-		tmpOut0 = fftp0[i] * bfq[(i-32)*4 + 0] + fftp1[i] * bfq[(i-32)*4 + 1];
-		tmpOut1 = fftp0[i] * bfq[(i-32)*4 + 2] + fftp1[i] * bfq[(i-32)*4 + 3];
+		tmpOut0 = fftp0[i] * bfq[i*4 + 0] + fftp1[i] * bfq[i*4 + 1];
+		tmpOut1 = fftp0[i] * bfq[i*4 + 2] + fftp1[i] * bfq[i*4 + 3];
 		fftp0[i] = tmpOut0;
 		fftp1[i] = tmpOut1;
 	}

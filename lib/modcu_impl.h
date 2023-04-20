@@ -32,6 +32,9 @@
 #define MODCU_S_MOD 3
 #define MODCU_S_COPY 4
 
+#define MODCU_GAP_HEAD 80
+#define MODCU_GAP_TAIL 80
+
 namespace gr {
   namespace ieee80211cu {
 
@@ -59,15 +62,15 @@ namespace gr {
       uint8_t d_pktVhtSigBCrc[8];
       uint8_t d_pktVhtSigBCrc1[8];
       uint8_t d_pkt[CUDEMOD_B_MAX];
-      gr_complex d_sig0[CUDEMOD_S_MAX * 80];
-      gr_complex d_sig1[CUDEMOD_S_MAX * 80];
+      gr_complex d_sig0[CUDEMOD_S_MAX * 80 + MODCU_GAP_HEAD + MODCU_GAP_TAIL];
+      gr_complex d_sig1[CUDEMOD_S_MAX * 80 + MODCU_GAP_HEAD + MODCU_GAP_TAIL];
       // modulation
       c8p_mod d_m;
       c8p_preamble d_pream;
       cloud80211modcu d_modcu;
       uint8_t d_vhtBfQBR[1024];
       uint8_t d_vhtBfQBI[1024];
-      gr_complex d_vhtBfQ[256];
+      gr_complex d_vhtBfQ[256]; // fft shifted
       // copy samples out
       int d_nSampTotal;
       int d_nSampCopied;

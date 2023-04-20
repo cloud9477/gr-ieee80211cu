@@ -44,9 +44,8 @@ namespace gr {
       memset(d_pktVhtSigBCrc, 0, 8);
       memset(d_pktVhtSigBCrc1, 0, 8);
       memset(d_pkt, 0, CUDEMOD_B_MAX);
-      memset((uint8_t*) d_sig0, 0, sizeof(gr_complex) * CUDEMOD_S_MAX * 80);
-      memset((uint8_t*) d_sig1, 0, sizeof(gr_complex) * CUDEMOD_S_MAX * 80);
-
+      memset((uint8_t*) d_sig0, 0, sizeof(gr_complex) * CUDEMOD_S_MAX * 80 + MODCU_GAP_HEAD + MODCU_GAP_TAIL);
+      memset((uint8_t*) d_sig1, 0, sizeof(gr_complex) * CUDEMOD_S_MAX * 80 + MODCU_GAP_HEAD + MODCU_GAP_TAIL);
       d_nSampTotal = 0;
       d_nSampCopied = 0;
     }
@@ -78,8 +77,8 @@ namespace gr {
                        gr_vector_void_star &output_items)
     {
       const uint8_t* inPkt = static_cast<const uint8_t*>(input_items[0]);
-      // gr_complex* outSig1 = static_cast<gr_complex*>(output_items[0]);
-      // gr_complex* outSig2 = static_cast<gr_complex*>(output_items[1]);
+      gr_complex* outSig0 = static_cast<gr_complex*>(output_items[0]);
+      gr_complex* outSig1 = static_cast<gr_complex*>(output_items[1]);
       d_nProc = ninput_items[0];
       d_nGen = noutput_items;
       d_nUsed = 0;
@@ -150,7 +149,13 @@ namespace gr {
           memcpy(d_vhtBfQBI, d_pkt, 1024);
           float* tmpFloatPR = (float*)d_vhtBfQBR;
           float* tmpFloatPI = (float*)d_vhtBfQBI;
-          for(int i=0;i<256;i++)
+          for(int i=0;i<128;i++)
+          {
+            d_vhtBfQ[i+128] = gr_complex(*tmpFloatPR, *tmpFloatPI);
+            tmpFloatPR += 1;
+            tmpFloatPI += 1;
+          }
+          for(int i=0;i<128;i++)
           {
             d_vhtBfQ[i] = gr_complex(*tmpFloatPR, *tmpFloatPI);
             tmpFloatPR += 1;
@@ -161,45 +166,15 @@ namespace gr {
         }
         else if(d_pktFormat == C8P_F_VHT_MU)
         {
-          d_pream.genVHTMuMimo(&d_m, d_vhtBfQ, d_sig0, d_sig1, d_pktVhtSigBCrc, d_pktVhtSigBCrc1);
+          d_pream.genVHTMuMimo(&d_m, d_vhtBfQ, d_sig0 + MODCU_GAP_HEAD, d_sig1 + MODCU_GAP_HEAD, d_pktVhtSigBCrc, d_pktVhtSigBCrc1);
           d_modcu.cuModPktCopy(0, d_nPktTotal, d_pkt);
-          d_modcu.cuModVHTMuMimo(&d_m, (cuFloatComplex*) (d_sig0 + 720 + 80*d_m.nLTF), (cuFloatComplex*) (d_sig1 + 720 + 80*d_m.nLTF), d_pktVhtSigBCrc, d_pktVhtSigBCrc1);
-          procWindowing(d_sig0, d_m.nSym + 4 + d_m.nLTF);
-          procWindowing(d_sig1, d_m.nSym + 4 + d_m.nLTF);
-
-          std::cout<<"vhtreal0 = [";
-          for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp);i++)
-          {
-            std::cout<<d_sig0[i].real()<<", ";
-          }
-          std::cout<<"]";
-          std::cout<<std::endl;
-          std::cout<<std::endl;
-          std::cout<<"vhtimag0 = [";
-          for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp);i++)
-          {
-            std::cout<<d_sig0[i].imag()<<", ";
-          }
-          std::cout<<"]";
-          std::cout<<std::endl;
-          std::cout<<std::endl;
-
-          std::cout<<"vhtreal1 = [";
-          for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp);i++)
-          {
-            std::cout<<d_sig1[i].real()<<", ";
-          }
-          std::cout<<"]";
-          std::cout<<std::endl;
-          std::cout<<std::endl;
-          std::cout<<"vhtimag1 = [";
-          for(int i=0;i<(720 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp);i++)
-          {
-            std::cout<<d_sig1[i].imag()<<", ";
-          }
-          std::cout<<"]";
-          std::cout<<std::endl;
-          std::cout<<std::endl;
+          d_modcu.cuModVHTMuMimo(&d_m, (cuFloatComplex*) (d_sig0 + MODCU_GAP_HEAD + 720 + 80*d_m.nLTF), (cuFloatComplex*) (d_sig1 + MODCU_GAP_HEAD + 720 + 80*d_m.nLTF), d_pktVhtSigBCrc, d_pktVhtSigBCrc1);
+          procWindowing(d_sig0 + MODCU_GAP_HEAD, d_m.nSym + 4 + d_m.nLTF);
+          procWindowing(d_sig1 + MODCU_GAP_HEAD, d_m.nSym + 4 + d_m.nLTF);
+          // memset((uint8_t*)(d_sig0 + MODCU_GAP_HEAD + 720 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp), 0, MODCU_GAP_TAIL * sizeof(gr_complex));
+          // memset((uint8_t*)(d_sig1 + MODCU_GAP_HEAD + 720 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp), 0, MODCU_GAP_TAIL * sizeof(gr_complex));
+          d_nSampTotal = 720 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp + MODCU_GAP_HEAD + MODCU_GAP_TAIL;
+          d_sModcu = MODCU_S_COPY;
         }
         else
         {
@@ -208,44 +183,47 @@ namespace gr {
           formatToModSu(&d_m, d_pktFormat, d_pktMcs0, d_pktNss0, d_pktLen0);
           if(d_m.format == C8P_F_L)
           {
-            d_pream.genLegacy(&d_m, d_sig0);
-            d_modcu.cuModLHTSiso(&d_m, (cuFloatComplex*) (d_sig0 + 400));
-            procWindowing(d_sig0, d_m.nSym + 1);
+            d_pream.genLegacy(&d_m, d_sig0 + MODCU_GAP_HEAD);
+            d_modcu.cuModLHTSiso(&d_m, (cuFloatComplex*) (d_sig0 + MODCU_GAP_HEAD + 400));
+            procWindowing(d_sig0 + MODCU_GAP_HEAD, d_m.nSym + 1);
+            d_nSampTotal = 400 + d_m.nSym * d_m.nSymSamp + MODCU_GAP_HEAD + MODCU_GAP_TAIL;
           }
           else if(d_m.nSS == 1)
           {
             if(d_m.format == C8P_F_HT)
             {
-              d_pream.genHTSiso(&d_m, d_sig0);
-              d_modcu.cuModLHTSiso(&d_m, (cuFloatComplex*) (d_sig0 + 640 + 80*d_m.nLTF));
-              procWindowing(d_sig0, d_m.nSym + 4 + d_m.nLTF);
+              d_pream.genHTSiso(&d_m, d_sig0 + MODCU_GAP_HEAD);
+              d_modcu.cuModLHTSiso(&d_m, (cuFloatComplex*) (d_sig0 + MODCU_GAP_HEAD + 640 + 80*d_m.nLTF));
+              procWindowing(d_sig0 + MODCU_GAP_HEAD, d_m.nSym + 4 + d_m.nLTF);
+              d_nSampTotal = 640 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp + MODCU_GAP_HEAD + MODCU_GAP_TAIL;
             }
             else
             {
-              d_pream.genVHTSiso(&d_m, d_sig0, d_pktVhtSigBCrc);
-              d_modcu.cuModVHTSiso(&d_m, (cuFloatComplex*) (d_sig0 + 720 + 80*d_m.nLTF), d_pktVhtSigBCrc);
-              procWindowing(d_sig0, d_m.nSym + 5 + d_m.nLTF);
+              d_pream.genVHTSiso(&d_m, d_sig0 + MODCU_GAP_HEAD, d_pktVhtSigBCrc);
+              d_modcu.cuModVHTSiso(&d_m, (cuFloatComplex*) (d_sig0 + MODCU_GAP_HEAD + 720 + 80*d_m.nLTF), d_pktVhtSigBCrc);
+              procWindowing(d_sig0 + MODCU_GAP_HEAD, d_m.nSym + 5 + d_m.nLTF);
+              d_nSampTotal = 720 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp + MODCU_GAP_HEAD + MODCU_GAP_TAIL;
             }
           }
           else
           {
             if(d_m.format == C8P_F_HT)
             {
-              d_pream.genHTSuMimo(&d_m, d_sig0, d_sig1);
-              d_modcu.cuModHTMimo(&d_m, (cuFloatComplex*) (d_sig0 + 640 + 80*d_m.nLTF), (cuFloatComplex*) (d_sig1 + 640 + 80*d_m.nLTF));
-              procWindowing(d_sig0, d_m.nSym + 4 + d_m.nLTF);
-              procWindowing(d_sig1, d_m.nSym + 4 + d_m.nLTF);
+              d_pream.genHTSuMimo(&d_m, d_sig0 + MODCU_GAP_HEAD, d_sig1 + MODCU_GAP_HEAD);
+              d_modcu.cuModHTMimo(&d_m, (cuFloatComplex*) (d_sig0 + MODCU_GAP_HEAD + 640 + 80*d_m.nLTF), (cuFloatComplex*) (d_sig1 + MODCU_GAP_HEAD + 640 + 80*d_m.nLTF));
+              procWindowing(d_sig0 + MODCU_GAP_HEAD, d_m.nSym + 4 + d_m.nLTF);
+              procWindowing(d_sig1 + MODCU_GAP_HEAD, d_m.nSym + 4 + d_m.nLTF);
+              d_nSampTotal = 640 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp + MODCU_GAP_HEAD + MODCU_GAP_TAIL;
             }
             else
             {
-              d_pream.genVHTSuMimo(&d_m, d_sig0, d_sig1, d_pktVhtSigBCrc);
-              d_modcu.cuModVHTSuMimo(&d_m, (cuFloatComplex*) (d_sig0 + 720 + 80*d_m.nLTF), (cuFloatComplex*) (d_sig1 + 720 + 80*d_m.nLTF), d_pktVhtSigBCrc);
-              procWindowing(d_sig0, d_m.nSym + 4 + d_m.nLTF);
-              procWindowing(d_sig1, d_m.nSym + 4 + d_m.nLTF);
+              d_pream.genVHTSuMimo(&d_m, d_sig0 + MODCU_GAP_HEAD, d_sig1 + MODCU_GAP_HEAD, d_pktVhtSigBCrc);
+              d_modcu.cuModVHTSuMimo(&d_m, (cuFloatComplex*) (d_sig0 + MODCU_GAP_HEAD + 720 + 80*d_m.nLTF), (cuFloatComplex*) (d_sig1 + MODCU_GAP_HEAD + 720 + 80*d_m.nLTF), d_pktVhtSigBCrc);
+              procWindowing(d_sig0 + MODCU_GAP_HEAD, d_m.nSym + 4 + d_m.nLTF);
+              procWindowing(d_sig1 + MODCU_GAP_HEAD, d_m.nSym + 4 + d_m.nLTF);
+              d_nSampTotal = 720 + d_m.nLTF * 80 + d_m.nSym * d_m.nSymSamp + MODCU_GAP_HEAD + MODCU_GAP_TAIL;
             }
           }
-
-          d_nSampTotal = d_m.nSym * d_m.nSymSamp;
           d_sModcu = MODCU_S_COPY;
         }
       }

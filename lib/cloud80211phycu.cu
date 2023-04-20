@@ -1497,16 +1497,8 @@ __global__ void cuSpatialMapping(int n, cuFloatComplex *symfreq0, cuFloatComplex
     return;
   }
   k = i % 64;
-  if(k < 32)
-  {
-    tmp0 = cuCaddf(cuCmulf(symfreq0[i], bfq[(k+32)*4 + 0]), cuCmulf(symfreq1[i], bfq[(k+32)*4 + 1]));
-    tmp1 = cuCaddf(cuCmulf(symfreq0[i], bfq[(k+32)*4 + 2]), cuCmulf(symfreq1[i], bfq[(k+32)*4 + 3]));
-  }
-  else
-  {
-    tmp0 = cuCaddf(cuCmulf(symfreq0[i], bfq[(k-32)*4 + 0]), cuCmulf(symfreq1[i], bfq[(k-32)*4 + 1]));
-    tmp1 = cuCaddf(cuCmulf(symfreq0[i], bfq[(k-32)*4 + 2]), cuCmulf(symfreq1[i], bfq[(k-32)*4 + 3]));
-  }
+  tmp0 = cuCaddf(cuCmulf(symfreq0[i], bfq[k*4 + 0]), cuCmulf(symfreq1[i], bfq[k*4 + 1]));
+  tmp1 = cuCaddf(cuCmulf(symfreq0[i], bfq[k*4 + 2]), cuCmulf(symfreq1[i], bfq[k*4 + 3]));
   symfreq0[i] = tmp0;
   symfreq1[i] = tmp1;
 }
@@ -1962,22 +1954,18 @@ void cloud80211modcu::cuModVHTMuMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatCo
   cuCodePunc<<<(m->nSym * m->nDBPSMu[1] * 2 + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nDBPSMu[1] * 2, m->crMu[1], pktBitsCoded + CUDEMOD_L_MAX_MU, pktBitsPuncd + CUDEMOD_L_MAX_MU);
   cuCodeInterleave<<<(m->nSym * m->nCBPSSMu[0] + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nCBPSSMu[0], m->nCBPSSMu[0], interLutNLIdx[m->modMu[0]], pktBitsPuncd, pktBitsInted);
   cuCodeInterleave<<<(m->nSym * m->nCBPSSMu[1] + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nCBPSSMu[1], m->nCBPSSMu[1], interLutNLIdx[m->modMu[1]], pktBitsPuncd + CUDEMOD_L_MAX_MU, pktBitsInted + CUDEMOD_L_MAX_MU);
-  cudaStreamSynchronize(modStream0);
-  cudaStreamSynchronize(modStream1);
   cuQamModStream<<<(m->nSym * m->nSD + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nSD, m->nSD, m->nBPSCSMu[0], qamLutIdx[m->modMu[0]], qamScMapNL, pilotsVHT, pktBitsInted, pktSymFreq);
   cuQamModStream<<<(m->nSym * m->nSD + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nSD, m->nSD, m->nBPSCSMu[1], qamLutIdx[m->modMu[1]], qamScMapNL, pilotsVHT, pktBitsInted + CUDEMOD_L_MAX_MU, pktSymFreq + m->nSym * 64);
-  cudaStreamSynchronize(modStream0);
-  cudaStreamSynchronize(modStream1);
   cuCsd<<<(m->nSym * 64 + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * 64, symCsdNL2, pktSymFreq + m->nSym * 64);
-  cudaStreamSynchronize(modStream1);
-  cuSpatialMapping<<<(m->nSym * 64 + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * 64, pktSymFreq, pktSymFreq + m->nSym * 64, bfQ);
+  // spatial mapping, bfQ already shifted
   cudaStreamSynchronize(modStream0);
+  cuSpatialMapping<<<(m->nSym * 64 + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * 64, pktSymFreq, pktSymFreq + m->nSym * 64, bfQ);
+  cudaStreamSynchronize(modStream1);
   for(int symIter=0; symIter < ((m->nSym * 2 + CUDEMOD_FFT_BATCH - 1) / CUDEMOD_FFT_BATCH); symIter++ )
   {
     cufftExecC2C(ifftModPlan, &pktSymFreq[symIter*CUDEMOD_FFT_BATCH*64], &pktSymTime[symIter*CUDEMOD_FFT_BATCH*64], CUFFT_INVERSE);
   }
-  cuGiScale<<<(m->nSym * 2 * m->nSymSamp + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * 2 * m->nSymSamp, scaleFactorNL, pktSymTime, pktSym);
-  cudaStreamSynchronize(modStream0);
+  cuGiScale<<<(m->nSym * 2 * m->nSymSamp + 1023) / 1024, 1024>>>(m->nSym * 2 * m->nSymSamp, scaleFactorNL, pktSymTime, pktSym);
   cudaMemcpy(sig0, pktSym, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
   cudaMemcpy(sig1, pktSym + m->nSym * m->nSymSamp, sizeof(cuFloatComplex) * m->nSym * 80, cudaMemcpyDeviceToHost);
 }
