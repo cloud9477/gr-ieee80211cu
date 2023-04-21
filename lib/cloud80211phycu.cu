@@ -1876,8 +1876,6 @@ void cloud80211modcu::cuModHTMimo(c8p_mod *m, cuFloatComplex *sig0, cuFloatCompl
   cuCodeInterleave<<<(m->nSym * m->nCBPSS + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nCBPSS, m->nCBPSS, interLutNL2Idx[m->mod], pktBitsStream + m->nSym * m->nCBPSS, pktBitsInted + m->nSym * m->nCBPSS);
   cudaStreamSynchronize(modStream0);
   cudaStreamSynchronize(modStream1);
-  cuDebugBits(pktBitsInted, m->nSym * m->nCBPSS);
-  cuDebugBits(pktBitsInted + m->nSym * m->nCBPSS, m->nSym * m->nCBPSS);
   cuQamModStream<<<(m->nSym * m->nSD + 1023) / 1024, 1024, 0, modStream0>>>(m->nSym * m->nSD, 52, m->nBPSCS, qamLutIdx[m->mod], qamScMapNL, pilotsHT2, pktBitsInted, pktSymFreq);
   cuQamModStream<<<(m->nSym * m->nSD + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * m->nSD, 52, m->nBPSCS, qamLutIdx[m->mod], qamScMapNL, pilotsHT2 + CUDEMOD_S_MAX * 4, pktBitsInted + m->nSym * m->nCBPSS, pktSymFreq + m->nSym * 64);
   cuCsd<<<(m->nSym * 64 + 1023) / 1024, 1024, 0, modStream1>>>(m->nSym * 64, symCsdNL2, pktSymFreq + m->nSym * 64);

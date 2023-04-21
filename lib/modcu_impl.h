@@ -32,6 +32,7 @@
 #define MODCU_S_RDPKT 2
 #define MODCU_S_MOD 3
 #define MODCU_S_COPY 4
+#define MODCU_S_CLEAN 5
 
 #define MODCU_GAP_HEAD 80
 #define MODCU_GAP_TAIL 80

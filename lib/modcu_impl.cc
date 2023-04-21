@@ -60,14 +60,7 @@ namespace gr {
     void
     modcu_impl::forecast (int noutput_items, gr_vector_int &ninput_items_required)
     {
-      if(d_sModcu == MODCU_S_RDPKT)
-      {
-        ninput_items_required[0] = noutput_items + (d_nPktTotal - d_nPktRead);
-      }
-      else
-      {
-        ninput_items_required[0] = noutput_items;
-      }
+      ninput_items_required[0] = noutput_items;
     }
 
     int
@@ -98,7 +91,7 @@ namespace gr {
           d_pktNss0 = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("nss0"), pmt::from_long(-1)));
           d_pktLen0 = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("len0"), pmt::from_long(-1)));
           d_pktSeq = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("seq"), pmt::from_long(-1)));
-          d_nPktTotal = d_pktLen0 + MODCU_GR_PAD;
+          d_nPktTotal = d_pktLen0;
           if(d_pktFormat == C8P_F_VHT_MU)
           {
             d_pktMcs1 = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("mcs1"), pmt::from_long(-1)));
@@ -255,7 +248,7 @@ namespace gr {
       {
         if(d_nGen < (d_nSampTotal - d_nSampCopied))
         {
-          memcpy((uint8_t*) outSig0, (uint8_t*) (d_sig0 + d_nSampCopied), d_nGen * sizeof(gr_complex));
+          memcpy(outSig0, d_sig0 + d_nSampCopied, d_nGen * sizeof(gr_complex));
           if(d_m.nSS == 1)
           {
             memset((uint8_t*) outSig1, 0, d_nGen * sizeof(gr_complex));
@@ -269,7 +262,7 @@ namespace gr {
         }
         else
         {
-          memcpy((uint8_t*) outSig0, (uint8_t*) (d_sig0 + d_nSampCopied), (d_nSampTotal - d_nSampCopied) * sizeof(gr_complex));
+          memcpy(outSig0, d_sig0 + d_nSampCopied, (d_nSampTotal - d_nSampCopied) * sizeof(gr_complex));
           if(d_m.nSS == 1)
           {
             memset((uint8_t*) outSig1, 0, (d_nSampTotal - d_nSampCopied) * sizeof(gr_complex));
@@ -281,6 +274,15 @@ namespace gr {
           d_nPassed += (d_nSampTotal - d_nSampCopied);
           d_nSampCopied = d_nSampTotal;
           std::cout<<"ieee80211 modcu, output sig done #"<<d_pktSeq<<std::endl;
+          d_sModcu = MODCU_S_CLEAN;
+        }
+      }
+
+      if(d_sModcu == MODCU_S_CLEAN)
+      {
+        if(d_nProc >= MODCU_GR_PAD)
+        {
+          d_nUsed += MODCU_GR_PAD;
           d_sModcu = MODCU_S_RDTAG;
         }
       }
