@@ -23,6 +23,7 @@
 
 #include <gnuradio/ieee80211cu/modcu.h>
 #include <gnuradio/fft/fft.h>
+#include <uhd/types/time_spec.hpp>
 #include <boost/crc.hpp>
 #include "cloud80211phy.h"
 #include "cloud80211phycu.cuh"
@@ -34,6 +35,8 @@
 
 #define MODCU_GAP_HEAD 80
 #define MODCU_GAP_TAIL 80
+
+#define MODCU_GR_PAD 160
 
 namespace gr {
   namespace ieee80211cu {
@@ -61,7 +64,7 @@ namespace gr {
       int d_nPktRead;
       uint8_t d_pktVhtSigBCrc[8];
       uint8_t d_pktVhtSigBCrc1[8];
-      uint8_t d_pkt[CUDEMOD_B_MAX];
+      uint8_t d_pkt[CUDEMOD_B_MAX + MODCU_GR_PAD];
       gr_complex d_sig0[CUDEMOD_S_MAX * 80 + MODCU_GAP_HEAD + MODCU_GAP_TAIL];
       gr_complex d_sig1[CUDEMOD_S_MAX * 80 + MODCU_GAP_HEAD + MODCU_GAP_TAIL];
       // modulation
@@ -86,7 +89,7 @@ namespace gr {
            gr_vector_int &ninput_items,
            gr_vector_const_void_star &input_items,
            gr_vector_void_star &output_items);
-
+      void addTag();
     };
 
   } // namespace ieee80211cu

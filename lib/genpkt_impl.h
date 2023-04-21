@@ -15,6 +15,9 @@ using namespace boost::placeholders;
 #define GENPKT_S_IDLE 0
 #define GENPKT_S_SCEDULE 1
 #define GENPKT_S_COPY 2
+#define GENPKT_S_PAD 3
+
+#define GENPKT_GR_PAD 160
 
 namespace gr {
   namespace ieee80211cu {

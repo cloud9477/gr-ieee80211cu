@@ -44,7 +44,6 @@ namespace gr {
       int pktLen = pmt::blob_length(msgVec);
       size_t tmpOffset(0);
       const uint8_t *tmpPkt = (const uint8_t *)pmt::uniform_vector_elements(msgVec, tmpOffset);
-      std::cout<<"msg read packet len " << pktLen <<std::endl;
       if(pktLen < 5){
         return;
       }
@@ -58,8 +57,8 @@ namespace gr {
       if(d_sEncode == GENPKT_S_SCEDULE)
       {
         d_sEncode = GENPKT_S_COPY;
-        std::cout<<"calculate length " << d_nTotal <<std::endl;
-        return d_nTotal;
+        // std::cout<<"calculate length " << d_nTotal <<std::endl;
+        return d_nTotal + GENPKT_GR_PAD;
       }
       return 0;
     }
@@ -72,7 +71,6 @@ namespace gr {
     {
       uint8_t* outPkt = static_cast<uint8_t*>(output_items[0]);
       d_nGen = noutput_items;
-
       if(d_sEncode == GENPKT_S_IDLE)
       {
         if(d_pktQ.size())
@@ -80,7 +78,7 @@ namespace gr {
           d_pktV = d_pktQ.front();
           d_pktQ.pop();
           d_pktFormat = (int)d_pktV[0];
-          std::cout<<"idle packet format " << d_pktFormat <<std::endl;
+          // std::cout<<"packet format " << d_pktFormat <<std::endl;
           if(d_pktFormat == C8P_F_VHT_BFQ_R || d_pktFormat == C8P_F_VHT_BFQ_I)
           {
             d_pktMcs0 = 0;
@@ -115,7 +113,6 @@ namespace gr {
           }
           else
           {
-            d_sEncode = GENPKT_S_SCEDULE;
             // write tag
             pmt::pmt_t dict = pmt::make_dict();
             dict = pmt::dict_add(dict, pmt::mp("format"), pmt::from_long(d_pktFormat));
@@ -140,8 +137,9 @@ namespace gr {
                               pmt::cdr(pair),
                               alias_pmt());
             }
-            std::cout<<"write tag with seq "<<d_pktSeq<<std::endl;
-            d_pktSeq++;
+            // std::cout<<"write tag with seq "<<d_pktSeq<<std::endl;
+            d_nCopied = 0;
+            d_sEncode = GENPKT_S_SCEDULE;
           }
         }
         return 0;
@@ -152,17 +150,36 @@ namespace gr {
         return 0;
       }
 
+      else if(d_sEncode == GENPKT_S_COPY)
+      {
+        if(d_nGen >= (d_nTotal - d_nCopied))
+        {
+          int tmpCopied = d_nTotal - d_nCopied;
+          memcpy(outPkt, d_pktV.data() + d_headerShift + d_nCopied, (d_nTotal - d_nCopied));
+          d_sEncode = GENPKT_S_PAD;
+          std::cout<<"ieee80211 genpkt write packet done "<<d_pktSeq<<std::endl;
+          d_pktSeq++;
+          d_nTotal = GENPKT_GR_PAD;
+          d_nCopied = 0;
+          return tmpCopied;
+        }
+        else
+        {
+          memcpy(outPkt, d_pktV.data() + d_headerShift + d_nCopied, d_nGen);
+          d_nCopied += d_nGen;
+          return d_nGen;
+        }
+      }
+
       else
       {
         if(d_nGen >= (d_nTotal - d_nCopied))
         {
-          memcpy(outPkt, d_pktV.data() + d_headerShift + d_nCopied, (d_nTotal - d_nCopied));
           d_sEncode = GENPKT_S_IDLE;
           return (d_nTotal - d_nCopied);
         }
         else
         {
-          memcpy(outPkt, d_pktV.data() + d_headerShift + d_nCopied, d_nGen);
           d_nCopied += d_nGen;
           return d_nGen;
         }

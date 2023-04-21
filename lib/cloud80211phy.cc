@@ -2597,8 +2597,24 @@ void procWindowing(gr_complex *sig, int n)
 	int indexb = 320;
 	for(int i=0;i<n;i++)
 	{
-		sig[indexa] = sig[indexa] * 0.5f;
-		sig[indexb] = sig[indexb] * 0.5f;
+		sig[indexa] *= 0.5f;
+		sig[indexb] *= 0.5f;
+		indexa += 80;
+		indexb += 80;
+	}
+}
+
+void procWindowing(gr_complex *sig0, gr_complex *sig1, int n)
+{
+	// windowing symbols except l-stf and l-ltf
+	int indexa = 319;
+	int indexb = 320;
+	for(int i=0;i<n;i++)
+	{
+		sig0[indexa] *= 0.5f;
+		sig0[indexb] *= 0.5f;
+		sig1[indexa] *= 0.5f;
+		sig1[indexb] *= 0.5f;
 		indexa += 80;
 		indexb += 80;
 	}
