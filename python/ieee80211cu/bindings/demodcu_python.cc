@@ -14,7 +14,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0)                                                       */
 /* BINDTOOL_USE_PYGCCXML(0)                                                        */
 /* BINDTOOL_HEADER_FILE(demodcu.h)                                        */
-/* BINDTOOL_HEADER_FILE_HASH(80fbb060e17c835b478439ac323b1a85)                     */
+/* BINDTOOL_HEADER_FILE_HASH(604c7d00d781e54fd11b219041aa3626)                     */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -39,6 +39,7 @@ void bind_demodcu(py::module& m)
         .def(py::init(&demodcu::make),
            py::arg("mupos"),
            py::arg("mugid"),
+           py::arg("ifdebug"),
            D(demodcu,make)
         )
         

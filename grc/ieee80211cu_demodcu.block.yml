@@ -4,7 +4,7 @@ category: '[ieee80211cu]'
 
 templates:
   imports: from gnuradio import ieee80211cu
-  make: ieee80211cu.demodcu(${mupos}, ${mugid})
+  make: ieee80211cu.demodcu(${mupos}, ${mugid}, ${ifdebug})
 
 parameters:
 - id: mupos
@@ -15,6 +15,10 @@ parameters:
   label: MU-MIMO Group ID
   dtype: int
   default: '2'
+- id: ifdebug
+  label: Print Debug Info
+  dtype: bool
+  default: 'True'
 
 inputs:
 - label: sig

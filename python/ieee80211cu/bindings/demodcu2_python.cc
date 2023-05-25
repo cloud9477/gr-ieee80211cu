@@ -14,7 +14,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0)                                                       */
 /* BINDTOOL_USE_PYGCCXML(0)                                                        */
 /* BINDTOOL_HEADER_FILE(demodcu2.h)                                        */
-/* BINDTOOL_HEADER_FILE_HASH(f1fe80daf2e3774e44ccc83ff82304c5)                     */
+/* BINDTOOL_HEADER_FILE_HASH(a743cbd9cb0261948412e3ef7e712d10)                     */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -30,13 +30,14 @@ namespace py = pybind11;
 void bind_demodcu2(py::module& m)
 {
 
-    using demodcu2    = gr::ieee80211cu::demodcu2;
+    using demodcu2    = ::gr::ieee80211cu::demodcu2;
 
 
     py::class_<demodcu2, gr::block, gr::basic_block,
         std::shared_ptr<demodcu2>>(m, "demodcu2", D(demodcu2))
 
         .def(py::init(&demodcu2::make),
+           py::arg("ifdebug"),
            D(demodcu2,make)
         )
         

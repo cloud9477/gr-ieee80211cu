@@ -51,12 +51,19 @@ namespace gr {
       cloud80211demodcu d_demodCu;
       // received info from tag
       std::vector<gr::tag_t> tags;
+      int d_pktSeq;
       int d_nSigLMcs;
       int d_nSigLLen;
-      gr_complex d_H[64];
+      std::vector<gr_complex> d_HL;
       int d_nSigLSamp;
       int d_nSampConsumed;
+      float d_cfo;
+      float d_snr;
+      float d_rssi;
+      float d_sssnr0;    // spatial stream snr only for vht
+      float d_sssnr1;    // spatial stream snr only for vht
       // check format
+      svSigDecoder d_decoder;
       gr_complex d_sig1[64];
       gr_complex d_sig2[64];
       float d_sigHtIntedLlr[96];
@@ -68,6 +75,10 @@ namespace gr {
       uint8_t d_sigHtBits[48];
       uint8_t d_sigVhtABits[48];
       uint8_t d_sigVhtB20Bits[26];
+      gr_complex d_sigVhtBQam0[52];
+      gr_complex d_sigVhtBQam1[52];
+      uint8_t d_sigVhtB20BitsCoded[52];
+      uint8_t d_sigVhtB20BitsInted[52];
       // fft
       fft::fft_complex_fwd d_ofdm_fft;
       gr_complex d_fftLtfOut1[64];
@@ -95,7 +106,7 @@ namespace gr {
       uint64_t d_htMcsCount[8];
 
      public:
-      demodcu2_impl();
+      demodcu2_impl(bool ifdebug);
       ~demodcu2_impl();
 
       // Where all the action really happens

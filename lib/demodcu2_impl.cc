@@ -25,9 +25,9 @@ namespace gr {
   namespace ieee80211cu {
 
     demodcu2::sptr
-    demodcu2::make()
+    demodcu2::make(bool ifdebug)
     {
-      return gnuradio::make_block_sptr<demodcu2_impl>(
+      return gnuradio::make_block_sptr<demodcu2_impl>(ifdebug
         );
     }
 
@@ -35,16 +35,17 @@ namespace gr {
     /*
      * The private constructor
      */
-    demodcu2_impl::demodcu2_impl()
+    demodcu2_impl::demodcu2_impl(bool ifdebug)
       : gr::block("demodcu2",
               gr::io_signature::make(2, 2, sizeof(gr_complex)),
               gr::io_signature::make(0, 0, 0)),
+              d_debug(ifdebug),
               d_ofdm_fft(64,1)
     {
       message_port_register_out(pmt::mp("out"));
       d_nProc = 0;
       d_nUsed = 0;
-      d_debug = false;
+      // d_debug = true;
       d_sDemod = DEMOD_S_RDTAG;
       d_nPktCorrect = 0;
       memset(d_vhtMcsCount, 0, sizeof(uint64_t) * 10);
@@ -96,23 +97,23 @@ namespace gr {
           for (auto tag : tags){
             d_meta = pmt::dict_add(d_meta, tag.key, tag.value);
           }
-          int tmpPktSeq = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("seq"), pmt::from_long(-1)));
+          d_cfo = pmt::to_float(pmt::dict_ref(d_meta, pmt::mp("cfo"), pmt::from_float(0.0f)));
+          d_snr = pmt::to_float(pmt::dict_ref(d_meta, pmt::mp("snr"), pmt::from_float(0.0f)));
+          d_rssi = pmt::to_float(pmt::dict_ref(d_meta, pmt::mp("rssi"), pmt::from_float(0.0f)));
+          d_pktSeq = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("seq"), pmt::from_long(-1)));
           d_nSigLMcs = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("mcs"), pmt::from_long(-1)));
           d_nSigLLen = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("len"), pmt::from_long(-1)));
           d_nSigLSamp = pmt::to_long(pmt::dict_ref(d_meta, pmt::mp("nsamp"), pmt::from_long(-1)));
-          std::vector<gr_complex> tmp_chan = pmt::c32vector_elements(pmt::dict_ref(d_meta, pmt::mp("chan"), pmt::PMT_NIL));
-          std::copy(tmp_chan.begin(), tmp_chan.end(), d_H);
-          dout<<"ieee80211 demodcu2, rd tag seq:"<<tmpPktSeq<<", mcs:"<<d_nSigLMcs<<", len:"<<d_nSigLLen<<", samp:"<<d_nSigLSamp<<std::endl;
+          d_HL = pmt::c32vector_elements(pmt::dict_ref(d_meta, pmt::mp("chan"), pmt::PMT_NIL));
           d_nSampConsumed = 0;
           d_nSigLSamp = d_nSigLSamp + 320;
           d_nSampCopied = 0;
           if(d_nSigLMcs > 0)
           {
             signalParserL(d_nSigLMcs, d_nSigLLen, &d_m);
-            d_demodCu.cuDemodChanSiso((cuFloatComplex*) d_H);
+            d_demodCu.cuDemodChanSiso((cuFloatComplex*) &d_HL[0]);
             d_nSampTotoal = d_m.nSymSamp * d_m.nSym;
             d_sDemod = DEMOD_S_DEMOD;
-            dout<<"ieee80211 demodcu2, legacy packet"<<std::endl;
           }
           else
           {
@@ -125,30 +126,23 @@ namespace gr {
       {
         fftDemod(&inSig[d_nUsed + 8], d_fftLtfOut1);
         fftDemod(&inSig[d_nUsed + 8+80], d_fftLtfOut2);
-        signalNlDemodDecode(d_fftLtfOut1, d_fftLtfOut2, d_H, d_sigHtIntedLlr, d_sigVhtAIntedLlr);
-        //-------------- format check first check vht, then ht otherwise legacy
-        procDeintLegacyBpsk(d_sigVhtAIntedLlr, d_sigVhtACodedLlr);
-        procDeintLegacyBpsk(&d_sigVhtAIntedLlr[48], &d_sigVhtACodedLlr[48]);
-        SV_Decode_Sig(d_sigVhtACodedLlr, d_sigVhtABits, 48);
+        procNLSigDemodDeint(d_fftLtfOut1, d_fftLtfOut2, d_HL, d_sigHtCodedLlr, d_sigVhtACodedLlr);
+        d_decoder.decode(d_sigVhtACodedLlr, d_sigVhtABits, 48);
         if(signalCheckVhtA(d_sigVhtABits))
         {
           // go to vht
           signalParserVhtA(d_sigVhtABits, &d_m, &d_sigVhtA);
-          dout<<"ieee80211 demodcu2, vht a check pass nSS:"<<d_m.nSS<<" nLTF:"<<d_m.nLTF<<std::endl;
           d_sDemod = DEMOD_S_VHT;
           d_nSampConsumed += 160;
           d_nUsed += 160;
         }
         else
         {
-          procDeintLegacyBpsk(d_sigHtIntedLlr, d_sigHtCodedLlr);
-          procDeintLegacyBpsk(&d_sigHtIntedLlr[48], &d_sigHtCodedLlr[48]);
-          SV_Decode_Sig(d_sigHtCodedLlr, d_sigHtBits, 48);
+          d_decoder.decode(d_sigHtCodedLlr, d_sigHtBits, 48);
           if(signalCheckHt(d_sigHtBits))
           {
             // go to ht
             signalParserHt(d_sigHtBits, &d_m, &d_sigHt);
-            dout<<"ieee80211 demodcu2, ht check pass nSS:"<<d_m.nSS<<", nLTF:"<<d_m.nLTF<<", len:"<<d_m.len<<std::endl;
             d_sDemod = DEMOD_S_HT;
             d_nSampConsumed += 160;
             d_nUsed += 160;
@@ -157,10 +151,9 @@ namespace gr {
           {
             // go to legacy
             signalParserL(d_nSigLMcs, d_nSigLLen, &d_m);
-            d_demodCu.cuDemodChanSiso((cuFloatComplex*) d_H);
+            d_demodCu.cuDemodChanSiso((cuFloatComplex*) &d_HL[0]);
             d_nSampTotoal = d_m.nSymSamp * d_m.nSym;
             d_sDemod = DEMOD_S_DEMOD;
-            dout<<"ieee80211 demodcu2, check format legacy packet"<<std::endl;
           }
         }
       }
@@ -170,7 +163,6 @@ namespace gr {
         nonLegacyChanEstimate(&inSig[d_nUsed + 80], &inSig2[d_nUsed + 80]);
         vhtSigBDemod(&inSig[d_nUsed + 80 + d_m.nLTF*80], &inSig2[d_nUsed + 80 + d_m.nLTF*80]);
         signalParserVhtB(d_sigVhtB20Bits, &d_m);
-        dout<<"ieee80211 demodcu2, vht b len:"<<d_m.len<<", mcs:"<<d_m.mcs<<", nSS:"<<d_m.nSS<<", nSym:"<<d_m.nSym<<std::endl;
         int tmpNLegacySym = (d_nSigLLen*8 + 22 + 23)/24;
         if(d_m.len > 0 && d_m.len <= 4095 && d_m.nSS <= 2 && (tmpNLegacySym * 80) >= (d_m.nSym * d_m.nSymSamp + 160 + 80 + d_m.nLTF * 80 + 80))
         {
@@ -302,7 +294,6 @@ namespace gr {
           {
             tmpLen |= (((int)tmpDeliBits[4+i])<<i);
           }
-          dout << "ieee80211 demodcu2, vht pkt subframe len: "<<tmpLen<<std::endl;
           if(d_m.len < (tmpProcP + 4 + tmpLen))
           {
             break;
@@ -311,39 +302,45 @@ namespace gr {
           d_crc32.reset();
           d_crc32.process_bytes(&d_psduBytes[tmpProcP+4], tmpLen);
           if (d_crc32.checksum() != 558161692) {
-            std::cout << "ieee80211 demodcu2, vht crc32 wrong, total:"<< d_nPktCorrect;
-            std::cout << ",0:"<<d_vhtMcsCount[0];
-            std::cout << ",1:"<<d_vhtMcsCount[1];
-            std::cout << ",2:"<<d_vhtMcsCount[2];
-            std::cout << ",3:"<<d_vhtMcsCount[3];
-            std::cout << ",4:"<<d_vhtMcsCount[4];
-            std::cout << ",5:"<<d_vhtMcsCount[5];
-            std::cout << ",6:"<<d_vhtMcsCount[6];
-            std::cout << ",7:"<<d_vhtMcsCount[7];
-            std::cout << ",8:"<<d_vhtMcsCount[8];
-            std::cout << ",9:"<<d_vhtMcsCount[9];
-            std::cout << std::endl;
+            if(d_debug)
+            {
+              std::string dbgStr("ieee80211 demodcu2, vht crc32 wrong, total:");
+              dbgStr += std::to_string(d_nPktCorrect);
+              for(int i=0;i<10;i++)
+              {
+                dbgStr += (std::string(",") + std::to_string(i) + std::string(":") + std::to_string(d_vhtMcsCount[i]));
+              }
+              dbgStr += (std::string(",cfo:") + std::to_string(d_cfo));
+              dbgStr += (std::string(",snr:") + std::to_string(d_snr));
+              dbgStr += (std::string(",rssi:") + std::to_string(d_rssi));
+              dbgStr += (std::string(",sssnr0:") + std::to_string(d_sssnr0));
+              dbgStr += (std::string(",sssnr1:") + std::to_string(d_sssnr1));
+              dout << dbgStr << std::endl;
+            }
             tmpProcP = tmpProcP + 4 + tmpLen;
           }
           else
           {
-            d_nPktCorrect++;
-            if(d_m.mcs >= 0 && d_m.mcs < 10)
+            if(d_debug)
             {
-              d_vhtMcsCount[d_m.mcs]++;
+              d_nPktCorrect++;
+              if(d_m.mcs >= 0 && d_m.mcs < 10)
+              {
+                d_vhtMcsCount[d_m.mcs]++;
+              }
+              std::string dbgStr("ieee80211 demodcu2, vht crc32 correct, total:");
+              dbgStr += std::to_string(d_nPktCorrect);
+              for(int i=0;i<10;i++)
+              {
+                dbgStr += (std::string(",") + std::to_string(i) + std::string(":") + std::to_string(d_vhtMcsCount[i]));
+              }
+              dbgStr += (std::string(",cfo:") + std::to_string(d_cfo));
+              dbgStr += (std::string(",snr:") + std::to_string(d_snr));
+              dbgStr += (std::string(",rssi:") + std::to_string(d_rssi));
+              dbgStr += (std::string(",sssnr0:") + std::to_string(d_sssnr0));
+              dbgStr += (std::string(",sssnr1:") + std::to_string(d_sssnr1));
+              dout << dbgStr << std::endl;
             }
-            std::cout << "ieee80211 demodcu2, vht crc32 correct, total:" << d_nPktCorrect;
-            std::cout << ",0:"<<d_vhtMcsCount[0];
-            std::cout << ",1:"<<d_vhtMcsCount[1];
-            std::cout << ",2:"<<d_vhtMcsCount[2];
-            std::cout << ",3:"<<d_vhtMcsCount[3];
-            std::cout << ",4:"<<d_vhtMcsCount[4];
-            std::cout << ",5:"<<d_vhtMcsCount[5];
-            std::cout << ",6:"<<d_vhtMcsCount[6];
-            std::cout << ",7:"<<d_vhtMcsCount[7];
-            std::cout << ",8:"<<d_vhtMcsCount[8];
-            std::cout << ",9:"<<d_vhtMcsCount[9];
-            std::cout << std::endl;
             // 1 byte packet format, 2 byte len
             d_psduBytes[tmpProcP+1] = d_m.format;    // byte 0 format
             d_psduBytes[tmpProcP+2] = tmpLen%256;  // byte 1-2 packet len
@@ -372,68 +369,46 @@ namespace gr {
           d_crc32.reset();
           d_crc32.process_bytes(d_psduBytes, d_m.len);
           if (d_crc32.checksum() != 558161692) {
-            if(d_m.format == C8P_F_L)
+            if(d_debug)
             {
-              std::cout << "ieee80211 demodcu2, legacy crc32 wrong, total:"<< d_nPktCorrect;
-              std::cout << ",0:"<<d_legacyMcsCount[0];
-              std::cout << ",1:"<<d_legacyMcsCount[1];
-              std::cout << ",2:"<<d_legacyMcsCount[2];
-              std::cout << ",3:"<<d_legacyMcsCount[3];
-              std::cout << ",4:"<<d_legacyMcsCount[4];
-              std::cout << ",5:"<<d_legacyMcsCount[5];
-              std::cout << ",6:"<<d_legacyMcsCount[6];
-              std::cout << ",7:"<<d_legacyMcsCount[7];
-              std::cout << std::endl;
-            }
-            else
-            {
-              std::cout << "ieee80211 demodcu2, ht crc32 wrong, total:"<< d_nPktCorrect;
-              std::cout << ",0:"<<d_htMcsCount[0];
-              std::cout << ",1:"<<d_htMcsCount[1];
-              std::cout << ",2:"<<d_htMcsCount[2];
-              std::cout << ",3:"<<d_htMcsCount[3];
-              std::cout << ",4:"<<d_htMcsCount[4];
-              std::cout << ",5:"<<d_htMcsCount[5];
-              std::cout << ",6:"<<d_htMcsCount[6];
-              std::cout << ",7:"<<d_htMcsCount[7];
-              std::cout << std::endl;
+              std::string dbgStr;
+              dbgStr = (d_m.format == C8P_F_L) ? std::string("ieee80211 demodcu2, legacy crc32 wrong, total:") : std::string("ieee80211 decode, ht crc32 wrong, total:");
+              dbgStr += std::to_string(d_nPktCorrect);
+              for(int i=0;i<8;i++)
+              {
+                dbgStr += (std::string(",") + std::to_string(i) + std::string(":"));
+                dbgStr += (d_m.format == C8P_F_L) ? std::to_string(d_legacyMcsCount[i]) : std::to_string(d_htMcsCount[i]);
+              }
+              dbgStr += (std::string(",cfo:") + std::to_string(d_cfo));
+              dbgStr += (std::string(",snr:") + std::to_string(d_snr));
+              dbgStr += (std::string(",rssi:") + std::to_string(d_rssi));
+              dout << dbgStr << std::endl;
             }
           }
           else
           {
-            d_nPktCorrect++;
-            if(d_m.format == C8P_F_L && d_m.mcs < 8)
+            if(d_debug)
             {
-              d_legacyMcsCount[d_m.mcs]++;
-              std::cout << "ieee80211 demodcu2, legacy crc32 correct, total:"<< d_nPktCorrect;
-              std::cout << ",0:"<<d_legacyMcsCount[0];
-              std::cout << ",1:"<<d_legacyMcsCount[1];
-              std::cout << ",2:"<<d_legacyMcsCount[2];
-              std::cout << ",3:"<<d_legacyMcsCount[3];
-              std::cout << ",4:"<<d_legacyMcsCount[4];
-              std::cout << ",5:"<<d_legacyMcsCount[5];
-              std::cout << ",6:"<<d_legacyMcsCount[6];
-              std::cout << ",7:"<<d_legacyMcsCount[7];
-              std::cout << std::endl;
-            }
-            else if(d_m.format == C8P_F_HT && d_m.mcs < 16)
-            {
-              d_htMcsCount[d_m.mcs%8]++;
-              std::cout << "ieee80211 demodcu2, ht crc32 correct, total:"<< d_nPktCorrect;
-              std::cout << ",0:"<<d_htMcsCount[0];
-              std::cout << ",1:"<<d_htMcsCount[1];
-              std::cout << ",2:"<<d_htMcsCount[2];
-              std::cout << ",3:"<<d_htMcsCount[3];
-              std::cout << ",4:"<<d_htMcsCount[4];
-              std::cout << ",5:"<<d_htMcsCount[5];
-              std::cout << ",6:"<<d_htMcsCount[6];
-              std::cout << ",7:"<<d_htMcsCount[7];
-              std::cout << std::endl;
-            }
-            else
-            {
-              dout << "ieee80211 demodcu2, format "<<d_m.format<<" mcs error: "<< d_m.mcs<<std::endl;
-              return;
+              d_nPktCorrect++;
+              std::string dbgStr;
+              if(d_m.format == C8P_F_L){
+                dbgStr = std::string("ieee80211 demodcu2, legacy crc32 correct, total:");
+                d_legacyMcsCount[d_m.mcs]++;
+              }
+              else{
+                dbgStr = std::string("ieee80211 demodcu2, ht crc32 correct, total:");
+                d_htMcsCount[d_m.mcs%8]++;
+              }
+              dbgStr += std::to_string(d_nPktCorrect);
+              for(int i=0;i<8;i++)
+              {
+                dbgStr += (std::string(",") + std::to_string(i) + std::string(":"));
+                dbgStr += (d_m.format == C8P_F_L) ? std::to_string(d_legacyMcsCount[i]) : std::to_string(d_htMcsCount[i]);
+              }
+              dbgStr += (std::string(",cfo:") + std::to_string(d_cfo));
+              dbgStr += (std::string(",snr:") + std::to_string(d_snr));
+              dbgStr += (std::string(",rssi:") + std::to_string(d_rssi));
+              dout << dbgStr << std::endl;
             }
             pmt::pmt_t tmpMeta = pmt::make_dict();
             tmpMeta = pmt::dict_add(tmpMeta, pmt::mp("len"), pmt::from_long(d_m.len+3));
@@ -597,7 +572,9 @@ namespace gr {
           {}
           else
           {
-            d_sigVhtB20IntedLlr[j] = (d_sig1[i] * tmpPilotSum / tmpPilotSumAbs).real();
+            // d_sigVhtB20IntedLlr[j] = (d_sig1[i] * tmpPilotSum / tmpPilotSumAbs).real();
+            d_sigVhtBQam0[j] = d_sig1[i] * tmpPilotSum / tmpPilotSumAbs;
+            d_sigVhtB20IntedLlr[j] = d_sigVhtBQam0[j].real();
             j++;
             if(j >= 52){j = 0;}
           }
@@ -636,7 +613,10 @@ namespace gr {
           {}
           else
           {
-            d_sigVhtB20IntedLlr[j] = ((d_sig1[i] * tmpPilotSum / tmpPilotSumAbs).real() + (d_sig2[i] * tmpPilotSum / tmpPilotSumAbs).real())/2.0f;
+            // d_sigVhtB20IntedLlr[j] = ((d_sig1[i] * tmpPilotSum / tmpPilotSumAbs).real() + (d_sig2[i] * tmpPilotSum / tmpPilotSumAbs).real())/2.0f;
+            d_sigVhtBQam0[j] = d_sig1[i] * tmpPilotSum / tmpPilotSumAbs;
+            d_sigVhtBQam1[j] = d_sig2[i] * tmpPilotSum / tmpPilotSumAbs;
+            d_sigVhtB20IntedLlr[j] = (d_sigVhtBQam0[j].real() + d_sigVhtBQam1[j].real())/2.0f;
             j++;
             if(j >= 52){j = 0;}
           }
@@ -652,7 +632,49 @@ namespace gr {
       {
         d_sigVhtB20CodedLlr[mapDeintVhtSigB20[i]] = d_sigVhtB20IntedLlr[i];
       }
-      SV_Decode_Sig(d_sigVhtB20CodedLlr, d_sigVhtB20Bits, 26);
+      d_decoder.decode(d_sigVhtB20CodedLlr, d_sigVhtB20Bits, 26);
+
+      bccEncoder(d_sigVhtB20Bits, d_sigVhtB20BitsCoded, 26);
+      procIntelVhtB20(d_sigVhtB20BitsCoded, d_sigVhtB20BitsInted);
+      if(d_m.nSS == 1)
+      {
+        double tmpNoisePower = 0.0;
+        for(int i=0;i<52;i++)
+        {
+          if(d_sigVhtB20BitsInted[i])
+          {
+            d_sigVhtBQam0[i] -= gr_complex(1.0f, 0.0f);
+          }
+          else
+          {
+            d_sigVhtBQam0[i] -= gr_complex(-1.0f, 0.0f);
+          }
+          tmpNoisePower += (double)(d_sigVhtBQam0[i].real()*d_sigVhtBQam0[i].real() + d_sigVhtBQam0[i].imag() * d_sigVhtBQam0[i].imag());
+        }
+        d_sssnr0 = (float)(log10(52.0/tmpNoisePower) * 10.0);
+      }
+      else if(d_m.nSS == 2)
+      {
+        double tmpNoisePower0 = 0.0;
+        double tmpNoisePower1 = 0.0;
+        for(int i=0;i<52;i++)
+        {
+          if(d_sigVhtB20BitsInted[i])
+          {
+            d_sigVhtBQam0[i] -= gr_complex(1.0f, 0.0f);
+            d_sigVhtBQam1[i] -= gr_complex(1.0f, 0.0f);
+          }
+          else
+          {
+            d_sigVhtBQam0[i] -= gr_complex(-1.0f, 0.0f);
+            d_sigVhtBQam1[i] -= gr_complex(-1.0f, 0.0f);
+          }
+          tmpNoisePower0 += (double)(d_sigVhtBQam0[i].real()*d_sigVhtBQam0[i].real() + d_sigVhtBQam0[i].imag() * d_sigVhtBQam0[i].imag());
+          tmpNoisePower1 += (double)(d_sigVhtBQam1[i].real()*d_sigVhtBQam1[i].real() + d_sigVhtBQam1[i].imag() * d_sigVhtBQam1[i].imag());
+        }
+        d_sssnr0 = (float)(log10(52.0/tmpNoisePower0) * 10.0);
+        d_sssnr1 = (float)(log10(52.0/tmpNoisePower1) * 10.0);
+      }
     }
 
   } /* namespace ieee80211cu */

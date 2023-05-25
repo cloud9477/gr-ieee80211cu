@@ -135,6 +135,23 @@ class c8p_sigVhtA
         int ldpcExtra;
 };
 
+class svSigDecoder
+{
+	private:
+	int i, j, t;
+	float accum_err_metric0[64];
+	float accum_err_metric1[64];
+	float *tmp, *pre_accum_err_metric, *cur_accum_err_metric;
+	int state_history[64][49];		/* state history table */
+	int state_sequence[49];			/* state sequence list */
+	int op0, op1, next0, next1;
+	float acc_tmp0, acc_tmp1, t0, t1;
+	float tbl_t[4];
+
+	public:
+	void decode(float* llrv, uint8_t* decoded_bits, int trellisLen);
+};
+
 class c8p_preamble
 {
     private:
@@ -180,9 +197,6 @@ class c8p_preamble
         
 };
 
-extern const int C8P_LEGACY_DP_SC[64];
-extern const int C8P_LEGACY_D_SC[64];
-extern const int FFT_26_DEMAP[64];
 extern const int FFT_26_SHIFT_DEMAP[128];
 extern const gr_complex LTF_L_26_F_COMP[64];
 extern const float LTF_L_26_F_FLOAT[64];
@@ -266,7 +280,8 @@ void procNonDataSc(gr_complex* sigIn, gr_complex* sigOut, int format);
 void procWindowing(gr_complex *sig, int n);
 void procWindowing(gr_complex *sig0, gr_complex *sig1, int n);
 
-void signalNlDemodDecode(gr_complex *sym1, gr_complex *sym2, gr_complex *h, float *llrht, float *llrvht);
+void procLHSigDemodDeint(gr_complex *sym1, gr_complex *sym2, gr_complex *sig, std::vector<gr_complex> &h, float *llr);
+void procNLSigDemodDeint(gr_complex *sym1, gr_complex *sym2, std::vector<gr_complex> h, float *llrht, float *llrvht);
 bool signalCheckLegacy(uint8_t* inBits, int* mcs, int* len, int* nDBPS);
 bool signalCheckHt(uint8_t* inBits);
 bool signalCheckVhtA(uint8_t* inBits);

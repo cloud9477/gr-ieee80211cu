@@ -32,7 +32,7 @@ namespace gr {
        * class. ieee80211cu::demodcu2::make is the public interface for
        * creating new instances.
        */
-      static sptr make();
+      static sptr make(bool ifdebug);
     };
 
   } // namespace ieee80211cu
